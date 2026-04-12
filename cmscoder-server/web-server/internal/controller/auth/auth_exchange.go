@@ -18,10 +18,11 @@ func (c *Controller) Exchange(ctx context.Context, req *v1.ExchangeReq) (res *v1
 	}
 
 	return &v1.ExchangeRes{
-		AccessToken:  out.AccessToken,
-		RefreshToken: out.RefreshToken,
-		ExpiresIn:    out.ExpiresIn,
-		ModelApiKey:  out.ModelApiKey,
+		AccessToken:    out.AccessToken,
+		RefreshToken:   out.RefreshToken,
+		ExpiresIn:      out.ExpiresIn,
+		ModelApiKey:    out.ModelApiKey,
+		CompositeToken: out.CompositeToken,
 		User: v1.UserInfo{
 			UserId:      out.User.UserId,
 			Email:       out.User.Email,

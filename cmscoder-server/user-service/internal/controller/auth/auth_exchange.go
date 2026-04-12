@@ -32,11 +32,15 @@ func (c *Controller) Exchange(ctx context.Context, req *v1.ExchangeReq) (res *v1
 		return nil, err
 	}
 
+	// Generate composite token binding model API key and access token.
+	compositeToken := c.modelKeySvc.GenerateCompositeToken(out.SessionId, out.AccessToken)
+
 	return &v1.ExchangeRes{
-		AccessToken:  out.AccessToken,
-		RefreshToken: out.RefreshToken,
-		ExpiresIn:    out.ExpiresIn,
-		ModelApiKey:  mkOut.ModelApiKey,
+		AccessToken:    out.AccessToken,
+		RefreshToken:   out.RefreshToken,
+		ExpiresIn:      out.ExpiresIn,
+		ModelApiKey:    mkOut.ModelApiKey,
+		CompositeToken: compositeToken,
 		User: v1.User{
 			UserId:      out.User.UserId,
 			Email:       out.User.Email,

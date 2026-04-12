@@ -3,8 +3,8 @@ package modelkey
 import (
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
-	"fmt"
 	"time"
 
 	"cmscoder-user-service/internal/cache"
@@ -104,9 +104,27 @@ func (s *Service) RevokeModelKey(ctx context.Context, sessionId string) error {
 	return s.cache.DeleteModelKeyBySession(ctx, sessionId)
 }
 
-// generateKey creates a random 32-char hex key with cmsk_ prefix.
+// generateKey creates a random 32-char hex key with cmscoder_ prefix.
 func generateKey() string {
 	b := make([]byte, 16)
 	_, _ = rand.Read(b)
-	return "cmsk_" + hex.EncodeToString(b)
+	return "cmscoder_" + hex.EncodeToString(b)
+}
+
+// CompositeTokenFormat is the prefix for composite tokens.
+const CompositeTokenFormat = "cmscoderv1_"
+
+// GenerateCompositeToken creates a composite token binding modelApiKey and accessToken.
+// Format: cmscoderv1_<base64(modelApiKey:accessToken)>
+// This ensures both tokens must be present together to use the model endpoint.
+func (s *Service) GenerateCompositeToken(sessionId, accessToken string) string {
+	// Look up the model API key for this session.
+	mk, err := s.cache.GetModelKeyBySession(context.Background(), sessionId)
+	if err != nil || mk == nil {
+		return ""
+	}
+
+	payload := mk.ModelApiKey + ":" + accessToken
+	encoded := base64.StdEncoding.EncodeToString([]byte(payload))
+	return CompositeTokenFormat + encoded
 }

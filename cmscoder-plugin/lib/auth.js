@@ -73,6 +73,7 @@ async function login() {
     const accessToken = exchangeData.accessToken || exchangeData.data?.accessToken;
     const refreshToken = exchangeData.refreshToken || exchangeData.data?.refreshToken;
     const modelApiKey = exchangeData.modelApiKey || exchangeData.data?.modelApiKey;
+    const compositeToken = exchangeData.compositeToken || exchangeData.data?.compositeToken;
     const expiresIn = exchangeData.expiresIn || exchangeData.data?.expiresIn || 900;
     const user = exchangeData.user || exchangeData.data?.user || {};
 
@@ -86,6 +87,9 @@ async function login() {
     secureStore.set("user_info", JSON.stringify(user));
     if (modelApiKey) {
       secureStore.set("model_api_key", modelApiKey);
+    }
+    if (compositeToken) {
+      secureStore.set("composite_token", compositeToken);
     }
 
     // 7. Store session metadata.
@@ -107,8 +111,8 @@ async function login() {
     }
 
     console.error(`Login successful! Welcome, ${user.displayName || user.userId}`);
-    if (modelApiKey) {
-      console.error(`Model API key generated: ${modelApiKey.substring(0, 10)}...`);
+    if (compositeToken) {
+      console.error(`Model composite token: ${compositeToken.substring(0, 20)}...`);
     }
   } finally {
     close();
@@ -257,6 +261,7 @@ module.exports = {
   ensureSession,
   getAccessToken,
   getModelApiKey,
+  getCompositeToken,
   status,
 };
 
@@ -265,6 +270,14 @@ module.exports = {
  */
 function getModelApiKey() {
   return secureStore.get("model_api_key");
+}
+
+/**
+ * Get the stored composite token for model API access.
+ * This token binds the model API key and access token together.
+ */
+function getCompositeToken() {
+  return secureStore.get("composite_token");
 }
 
 // CLI entry point.

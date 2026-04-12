@@ -93,7 +93,7 @@ sequenceDiagram
     Browser->>Plugin: 访问 http://127.0.0.1:<port>/callback
     Plugin->>Web: POST /api/auth/exchange
     Web->>User: POST /user-service/auth/login-tickets/exchange
-    User-->>Web: access_token + refresh_token + user summary
+    User-->>Web: access_token + refresh_token + modelApiKey + compositeToken + user summary
     Web-->>Plugin: 正式会话
     Plugin->>Plugin: 安全存储 token 并关闭临时服务
 ```
@@ -158,13 +158,15 @@ Feature 1 不单独建设 `cmscoder-plugind`：
 | `login session` | 登录初始化时创建 | 5 分钟 | 内存（生产用 Redis） |
 | `state` | 与 login session 绑定，防 CSRF | 同 login session | 内存（生产用 Redis） |
 | `login_ticket` | 浏览器回跳携带的一次性票据 | 60 秒，消费后立即失效 | 内存（生产用 Redis） |
-| `access_token` | 插件访问 web-server 的短期凭证 | 15 分钟 | 插件端内存 |
+| `access_token` | 插件访问 web-server 的短期凭证（= sessionId） | 15 分钟 | 插件端内存 |
 | `refresh_token` | 插件续期使用的长期凭证 | 7 天，每次刷新轮换 | 关系型数据库 |
 | `session_id` | 服务端会话主键 | 绑定 refresh_token 生命周期 | 关系型数据库 |
+| `modelApiKey` | 模型 API Key（`cmscoder_` + 32 hex） | 与 session 同步 | 内存（生产用 Redis） |
+| `compositeToken` | 复合凭证，绑定 modelApiKey + accessToken | 与 session 同步 | 插件端安全存储 |
 
 ### 5.6 核心设计约束
 
-- 插件端保存用户登录态，不保存系统级模型 Key 或 IAM `client_secret`
+- 插件端保存用户登录态和 Composite Token（用于模型端点调用），不保存系统级模型 Key 或 IAM `client_secret`
 - 服务端负责识别用户、租户、项目、角色
 - 会话管理需要兼顾较长登录周期与短时访问凭证
 - 登录失败、刷新失败、回调失败都需要可诊断
@@ -228,9 +230,11 @@ Feature 1 不单独建设 `cmscoder-plugind`：
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| accessToken | string | 访问令牌 |
+| accessToken | string | 访问令牌（= sessionId） |
 | refreshToken | string | 刷新令牌 |
 | expiresIn | int64 | 过期时间（秒） |
+| modelApiKey | string | Model API Key（`cmscoder_` + 32 hex，仅供参考） |
+| compositeToken | string | Composite Token（`cmscoderv1_<base64(modelApiKey:accessToken)>`，实际用于模型端点） |
 | user | object | 用户摘要 |
 
 #### 6.1.3 `POST /api/auth/refresh`
@@ -273,6 +277,7 @@ Feature 1 不单独建设 `cmscoder-plugind`：
 | `/user-service/auth/sessions/refresh` | POST | 刷新会话 |
 | `/user-service/auth/sessions/revoke` | POST | 撤销会话 |
 | `/user-service/auth/sessions/introspect` | GET | 校验 access token 或返回 session 摘要 |
+| `/user-service/auth/model-keys/validate` | POST | 校验 model API key |
 
 ### 6.3 IAM 配置与接口
 

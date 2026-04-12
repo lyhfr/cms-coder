@@ -108,7 +108,15 @@ cmscoder-plugin/
 - `server_config` — 后端 URL、默认模型、功能开关
 - `bootstrap_data` — 服务端 bootstrap 响应原文
 - `default_model` — 默认模型 ID
+- `model_endpoint` — 模型端点 URL（bootstrap 时从 backendUrl 推导）
 - `last_error` — 最近一次错误
+
+**secureStore** — 安全存储的键:
+- `access_token` — 会话访问凭证（= sessionId）
+- `refresh_token` — 刷新凭证
+- `user_info` — 用户信息 JSON
+- `model_api_key` — 原始 Model API Key（仅供参考）
+- `composite_token` — 复合凭证（`cmscoderv1_<base64(modelApiKey:accessToken)>`），实际用于模型端点调用
 
 #### 5.2.4 回环服务层 (lib/callback-server.js)
 
@@ -174,9 +182,12 @@ cmscoder-plugin/
 | API | 方法 | 调用方 | 用途 |
 |-----|------|--------|------|
 | `POST /api/auth/login` | POST | `lib/auth.js` | 创建登录 session，获取 browserUrl |
-| `POST /api/auth/exchange` | POST | `lib/auth.js` | 用 login_ticket 交换正式会话凭证 |
+| `GET /api/auth/login/{loginId}/authorize` | GET | 浏览器 | 重定向到 IAM 授权页 |
+| `GET /api/auth/iam/callback` | GET | 浏览器（IAM 回调） | 接收 IAM 授权码，转发给 user-service |
+| `POST /api/auth/exchange` | POST | `lib/auth.js` | 用 login_ticket 交换正式会话凭证 + Composite Token |
 | `POST /api/auth/refresh` | POST | `lib/auth.js` | 刷新 access_token |
 | `POST /api/auth/logout` | POST | `lib/auth.js` | 注销会话 |
+| `GET /api/auth/me` | GET | 需要 auth 中间件 | 获取当前用户信息 |
 | `GET /api/plugin/bootstrap` | GET | `lib/bootstrap.js` | 同步服务端配置（模型列表、功能开关） |
 
 ### 6.3 数据流
@@ -218,6 +229,7 @@ cmscoder-plugin/
 | 本地 token 安全存储 | macOS 使用 Keychain，Windows 使用 AES-256-GCM 加密文件，Linux 使用 libsecret，开发环境 fallback 到权限 600 的文件 |
 | 回环服务仅监听 127.0.0.1 | `callback-server.js` 绑定 `127.0.0.1`，不监听 `0.0.0.0` |
 | login_ticket 一次性消费 | 服务端保证 login_ticket 消费后立即失效（内存标记，生产用 Redis） |
+| Composite Token 防泄露 | 插件端使用 `cmscoderv1_` 复合凭证调用模型端点，即使 modelApiKey 或 accessToken 单独泄露，无法用于模型端点 |
 
 ## 8. 扩展点
 

@@ -11,6 +11,7 @@ const {
   ensureSession,
   getAccessToken,
   getModelApiKey,
+  getCompositeToken,
   status: cmdStatus,
 } = require("./auth");
 
@@ -24,6 +25,7 @@ module.exports = {
   ensureSession,
   getAccessToken,
   getModelApiKey,
+  getCompositeToken,
   status: cmdStatus,
   bootstrapSync,
 };

@@ -55,9 +55,42 @@
 
 ## 6. 接口、数据或配置
 
-- 对插件端：登录 session 初始化、浏览器授权入口、login ticket 交换、登录态校验、模型访问入口、模型列表、默认模型、额度摘要
-- 对上游：天启平台标准模型 API、IAM 标准 OAuth2.0 / SSO、IAM 授权码换 token 与用户信息接口
-- 核心数据：用户会话、IAM 登录 state 映射、login session、一次性 login ticket、模型映射、策略配置、额度记录、审计日志
+### 6.1 对插件端端点
+
+| 端点 | 方法 | 认证 | 说明 |
+|------|------|------|------|
+| `POST /api/auth/login` | POST | 无 | 创建登录 session，返回 loginId 和 browserUrl |
+| `GET /api/auth/login/{loginId}/authorize` | GET | 无 | 重定向浏览器到 IAM 授权页 |
+| `GET /api/auth/iam/callback` | GET | 无 | IAM OAuth 回调，接收 code + state，转发到 user-service |
+| `POST /api/auth/exchange` | POST | 无 | 用 login_ticket 交换 accessToken、refreshToken、compositeToken |
+| `POST /api/auth/refresh` | POST | 无 | 刷新 access_token（token 轮换） |
+| `POST /api/auth/logout` | POST | 无 | 注销会话（需 refreshToken 或 sessionId） |
+| `GET /api/auth/me` | GET | Access Token | 获取当前用户信息 |
+| `GET /api/plugin/bootstrap` | GET | Access Token | 获取插件引导配置（用户、功能开关、默认模型） |
+| `POST /api/model/v1/chat/completions` | POST | Composite Token | OpenAI 兼容聊天补全，支持流式 SSE |
+| `GET /api/model/v1/models` | GET | Composite Token | 列出可用模型 |
+
+### 6.2 user-service 内部端点
+
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `POST /user-service/auth/login` | POST | 创建登录 session |
+| `POST /user-service/auth/iam/callback/complete` | POST | 完成 IAM OAuth 回调 |
+| `POST /user-service/auth/login-tickets/exchange` | POST | 交换 login_ticket 为会话凭证 |
+| `POST /user-service/auth/sessions/refresh` | POST | 刷新会话（token 轮换） |
+| `POST /user-service/auth/sessions/revoke` | POST | 注销会话 |
+| `GET /user-service/auth/sessions/introspect` | GET | 校验 access_token |
+| `POST /user-service/auth/model-keys/validate` | POST | 校验 model API key |
+
+### 6.3 核心数据
+
+- 用户会话：sessionId（= accessToken）、refreshToken、expiresAt、agentType、pluginInstance
+- IAM 登录 state 映射：state → loginId
+- login session：loginId、state、localPort、agentType、pluginInstanceId、status、expiresAt
+- 一次性 login ticket：ticketId、loginId、pluginInstanceId、consumedAt、expiresAt
+- 模型映射：modelApiKey → userId + sessionId + agentType + pluginInstance + expiresAt
+- 策略配置：`[model]` 段（upstreamBaseURL、upstreamApiKey、defaultModel）
+- 额度记录、审计日志（待实现）
 
 ## 7. 非功能要求
 
@@ -73,37 +106,52 @@
 
 ## 9. Model API 设计
 
-### 9.1 临时 Model API Key
+### 9.1 临时 Model API Key 与 Composite Token
 
 登录 exchange 时服务端自动生成，特性：
 
 | 特性 | 说明 |
 |------|------|
-| 格式 | `cmsk_` + 32 字符 hex（16 字节随机） |
+| Model Key 格式 | `cmscoder_` + 32 字符 hex（16 字节随机） |
+| Composite Token 格式 | `cmscoderv1_<base64(modelApiKey:accessToken)>` |
 | 绑定 | 与 user session + agentType + pluginInstanceId 绑定 |
 | 有效期 | 与 access_token 同步，session 过期即失效 |
-| 防滥用 | 校验 key 时同时检查 session 是否有效；登出时联动吊销 |
+| 防滥用 | 解析 composite token 后同时校验 modelApiKey 和 accessToken，验证二者属于同一 session；登出时联动吊销 |
+| 插件使用 | 插件端实际使用 composite token 作为模型端点的 Bearer token |
 
 ### 9.2 端点列表
 
 | 端点 | 方法 | 认证方式 | 说明 |
 |------|------|---------|------|
-| `/api/model/v1/chat/completions` | POST | Model API Key (Bearer) | OpenAI 兼容聊天补全，支持流式 SSE |
-| `/api/model/v1/models` | GET | Model API Key (Bearer) | 列出可用模型 |
+| `/api/model/v1/chat/completions` | POST | Composite Token (Bearer) | OpenAI 兼容聊天补全，支持流式 SSE |
+| `/api/model/v1/models` | GET | Composite Token (Bearer) | 列出可用模型 |
 
 ### 9.3 安全链路
 
 ```
 插件端登录 exchange
   → user-service 生成 modelApiKey（绑定 session）
-  → 返回给插件端
+  → user-service 生成 compositeToken = base64(modelApiKey:accessToken)
+  → 返回 compositeToken 给插件端
   → 插件端存储到 secureStore
-  → Code Agent 使用 modelApiKey 调用 /api/model/v1/chat/completions
-  → web-server 通过 ModelAuth 中间件校验 key 有效性
-  → 同时校验关联 session 是否仍有效
+  → Code Agent 使用 compositeToken 调用 /api/model/v1/chat/completions
+  → web-server 通过 ModelAuth 中间件解析 composite token
+  → 提取 modelApiKey 和 accessToken
+  → 校验 modelApiKey 有效
+  → 校验 modelApiKey 的 sessionId == accessToken（同一 session 绑定）
+  → 校验 session 仍有效
   → 校验通过后转发请求到上游天启平台
   → 登出时联动吊销 modelApiKey
 ```
+
+### 9.4 Composite Token 防滥用机制
+
+| 威胁场景 | 防护机制 |
+|---------|---------|
+| Model API Key 泄露 | 缺少 accessToken，无法通过 session 绑定校验 |
+| Access Token 泄露 | 缺少 modelApiKey，无法解析 composite token |
+| 两个 token 分别泄露 | 攻击者需要同时获取并正确组合，难度指数级增加 |
+| 重放攻击 | accessToken 随 session 刷新轮换，旧 composite token 失效 |
 
 ## 10. 本地验证部署
 
