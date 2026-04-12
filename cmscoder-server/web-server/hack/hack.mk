@@ -5,7 +5,7 @@ include ./hack/hack-cli.mk
 up: cli.install
 	@gf up -a
 
-# Build binary using configuration from hack/config.yaml.
+# Build binary using configuration from hack/config.toml.
 .PHONY: build
 build: cli.install
 	@gf build -ew

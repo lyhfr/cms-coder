@@ -22,6 +22,7 @@ cmscoder-server/*/.env
 
 # ── All TOML ────────────────────────────────────────────────
 *.toml
+!cmscoder-server/*/hack/config.toml
 
 # ── Node / Plugin ──────────────────────────────────────────
 node_modules/

@@ -1,0 +1,4 @@
+[gfcli.gen.ctrl]
+srcFolder = "api"
+dstFolder = "internal/controller"
+mergeable = true
