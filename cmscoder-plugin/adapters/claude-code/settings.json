@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(security:*)",
+      "Bash(curl:*)",
+      "Bash(date:*)",
+      "Bash(echo:*)",
+      "Bash(node:*)",
+      "Bash(cat:*)",
+      "Bash(mkdir:*)",
+      "Bash(rm:*)",
+      "Bash(chmod:*)",
+      "Bash(grep:*)",
+      "Bash(sed:*)",
+      "Bash(open:*)",
+      "Bash(kill:*)",
+      "Bash(ps:*)",
+      "Bash(jobs:*)",
+      "Bash(wait:*)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          "node \"$CMSCODER_PLUGIN_DIR/lib/cmscoder.js\" ensure-session || echo '[cmscoder] Session check completed'"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,311 @@
+#!/usr/bin/env node
+"use strict";
+
+// cmscoder-init — Installation and initialization script for cmscoder plugin
+//
+// Usage:
+//   cmscoder-init                    # Interactive install
+//   cmscoder-init --claude           # Install for Claude Code only
+//   cmscoder-init --opencode         # Install for OpenCode only
+//   cmscoder-init --all              # Install for all supported runtimes
+//   cmscoder-init --dry-run          # Show what would be done without making changes
+//   cmscoder-init --backend-url URL  # Set the cmscoder backend URL
+
+const fs = require("fs");
+const path = require("path");
+const os = require("os");
+const http = require("http");
+const https = require("https");
+
+// ── Argument parsing ──────────────────────────────────────────
+
+const PLUGIN_SOURCE_DIR = path.resolve(__dirname, "..");
+
+const args = process.argv.slice(2);
+let dryRun = false;
+let installClaude = false;
+let installOpencode = false;
+let installAll = false;
+let backendUrl = "";
+
+let i = 0;
+while (i < args.length) {
+  switch (args[i]) {
+    case "--claude":
+      installClaude = true;
+      i++;
+      break;
+    case "--opencode":
+      installOpencode = true;
+      i++;
+      break;
+    case "--all":
+      installAll = true;
+      i++;
+      break;
+    case "--dry-run":
+      dryRun = true;
+      i++;
+      break;
+    case "--backend-url":
+      backendUrl = args[i + 1] || "";
+      i += 2;
+      break;
+    case "--help":
+    case "-h":
+      console.log(`Usage: cmscoder-init [OPTIONS]
+
+Options:
+  --claude          Install for Claude Code
+  --opencode        Install for OpenCode
+  --all             Install for all supported runtimes
+  --dry-run         Show what would be done without making changes
+  --backend-url URL Set the cmscoder backend URL
+  --help            Show this help message`);
+      process.exit(0);
+    default:
+      console.error(`Unknown option: ${args[i]}`);
+      process.exit(1);
+  }
+}
+
+// ── Prompts ───────────────────────────────────────────────────
+
+function ask(question) {
+  return new Promise((resolve) => {
+    process.stdout.write(question);
+    process.stdin.once("data", (d) => resolve(d.toString().trim()));
+  });
+}
+
+// If no runtime specified, prompt
+async function ensureRuntimeSelected() {
+  if (!installClaude && !installOpencode && !installAll) {
+    console.log("cmscoder Plugin Installer\n");
+    console.log("Which runtime would you like to install for?");
+    console.log("  1) Claude Code");
+    console.log("  2) OpenCode");
+    console.log("  3) All supported runtimes\n");
+    const choice = await ask("Select [1-3]: ");
+    if (choice === "1") installClaude = true;
+    else if (choice === "2") installOpencode = true;
+    else if (choice === "3") installAll = true;
+    else {
+      console.error("Invalid selection");
+      process.exit(1);
+    }
+  }
+}
+
+async function ensureBackendUrl() {
+  if (!backendUrl) {
+    backendUrl = await ask("cmscoder backend URL (e.g., https://cmscoder.example.com): ");
+    if (!backendUrl) {
+      console.error("Backend URL is required. Please re-run with --backend-url");
+      process.exit(1);
+    }
+  }
+  if (!backendUrl.startsWith("http://") && !backendUrl.startsWith("https://")) {
+    console.error("ERROR: Backend URL must start with http:// or https://");
+    process.exit(1);
+  }
+  backendUrl = backendUrl.replace(/\/$/, ""); // Remove trailing slash
+}
+
+// ── Helpers ───────────────────────────────────────────────────
+
+const HOME_DIR = os.homedir();
+const CLAUDE_CONFIG_DIR = path.join(HOME_DIR, ".claude");
+const CLAUDE_TARGET = path.join(HOME_DIR, ".cmscoder", "plugin");
+
+function logInfo(msg) { console.log(`\x1b[34m[INFO]\x1b[0m ${msg}`); }
+function logOk(msg) { console.log(`\x1b[32m[OK]\x1b[0m ${msg}`); }
+function logWarn(msg) { console.log(`\x1b[33m[WARN]\x1b[0m ${msg}`); }
+function logError(msg) { console.log(`\x1b[31m[ERROR]\x1b[0m ${msg}`); }
+
+function copyFile(src, dst) {
+  const dstDir = path.dirname(dst);
+  if (dryRun) {
+    console.log(`  Would copy: ${src} → ${dst}`);
+    return;
+  }
+  fs.mkdirSync(dstDir, { recursive: true });
+  fs.copyFileSync(src, dst);
+  try { fs.chmodSync(dst, 0o755); } catch { /* ignore */ }
+}
+
+// ── Install Claude Code ──────────────────────────────────────
+
+function installClaudeCode() {
+  console.log("\n\x1b[34m=== Claude Code ===\x1b[0m");
+
+  try {
+    require("child_process").execSync("command -v claude", { stdio: "ignore" });
+    logInfo("Claude Code detected");
+  } catch {
+    logWarn("Claude Code not found in PATH, but installing anyway");
+  }
+
+  logInfo(`Installing plugin files to ${CLAUDE_TARGET}`);
+
+  // Lib files (shared core — all JS)
+  const libFiles = [
+    "cmscoder.js",
+    "auth.js",
+    "callback-server.js",
+    "storage.js",
+    "http-client.js",
+    "bootstrap.js",
+  ];
+  for (const f of libFiles) {
+    copyFile(
+      path.join(PLUGIN_SOURCE_DIR, "lib", f),
+      path.join(CLAUDE_TARGET, "lib", f),
+    );
+  }
+
+  // Claude Code hooks (thin shell wrappers)
+  copyFile(
+    path.join(PLUGIN_SOURCE_DIR, "adapters", "claude-code", "hooks", "session-start", "check-auth.sh"),
+    path.join(CLAUDE_CONFIG_DIR, "hooks", "session-start", "check-auth.sh"),
+  );
+  copyFile(
+    path.join(PLUGIN_SOURCE_DIR, "adapters", "claude-code", "hooks", "pre-command", "check-command.sh"),
+    path.join(CLAUDE_CONFIG_DIR, "hooks", "pre-command", "check-command.sh"),
+  );
+  copyFile(
+    path.join(PLUGIN_SOURCE_DIR, "adapters", "claude-code", "hooks", "post-command", "audit.sh"),
+    path.join(CLAUDE_CONFIG_DIR, "hooks", "post-command", "audit.sh"),
+  );
+
+  // Skills
+  copyFile(
+    path.join(PLUGIN_SOURCE_DIR, "adapters", "claude-code", "skills", "cmscoder-login", "SKILL.md"),
+    path.join(CLAUDE_CONFIG_DIR, "skills", "cmscoder-login", "SKILL.md"),
+  );
+  copyFile(
+    path.join(PLUGIN_SOURCE_DIR, "adapters", "claude-code", "skills", "cmscoder-status", "SKILL.md"),
+    path.join(CLAUDE_CONFIG_DIR, "skills", "cmscoder-status", "SKILL.md"),
+  );
+
+  // Set CMSCODER_PLUGIN_DIR in shell profile
+  if (!dryRun) {
+    const exportLine = `export CMSCODER_PLUGIN_DIR="${CLAUDE_TARGET}"`;
+    const profileCandidates = [".zshrc", ".bashrc", ".bash_profile"].map((f) => path.join(HOME_DIR, f));
+    const profileFile = profileCandidates.find((f) => fs.existsSync(f));
+    if (profileFile) {
+      const content = fs.readFileSync(profileFile, "utf8");
+      if (!content.includes("CMSCODER_PLUGIN_DIR")) {
+        fs.appendFileSync(profileFile, `\n# cmscoder plugin\n${exportLine}\n`);
+        logInfo(`Added CMSCODER_PLUGIN_DIR to ${profileFile}`);
+      }
+    }
+  }
+
+  // Backend URL config
+  const configDir = path.join(CLAUDE_TARGET, "config");
+  if (!dryRun) {
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(path.join(configDir, "backend_url"), backendUrl + "\n");
+  }
+  logInfo(`Backend URL: ${backendUrl}`);
+
+  logOk("Claude Code adapter installed");
+}
+
+// ── Install OpenCode ─────────────────────────────────────────
+
+function doInstallOpencode() {
+  console.log("\n\x1b[34m=== OpenCode ===\x1b[0m");
+
+  if (!installClaude) {
+    logInfo(`Installing plugin files to ${CLAUDE_TARGET}`);
+    const libFiles = ["cmscoder.js", "auth.js", "callback-server.js", "storage.js", "http-client.js", "bootstrap.js"];
+    for (const f of libFiles) {
+      copyFile(
+        path.join(PLUGIN_SOURCE_DIR, "lib", f),
+        path.join(CLAUDE_TARGET, "lib", f),
+      );
+    }
+  }
+
+  logOk("OpenCode adapter installed (note: OpenCode-specific hooks need to be configured manually based on OpenCode version)");
+}
+
+// ── Connectivity check ───────────────────────────────────────
+
+async function verifyConnectivity() {
+  if (dryRun) return;
+
+  console.log("\n\x1b[34m=== Connectivity Check ===\x1b[0m");
+
+  const parsed = new URL(backendUrl);
+  const lib = parsed.protocol === "https:" ? https : http;
+
+  return new Promise((resolve) => {
+    const req = lib.get(backendUrl + "/api/plugin/bootstrap", { timeout: 5000 }, (res) => {
+      let body = "";
+      res.on("data", (c) => (body += c));
+      res.on("end", () => {
+        if (res.statusCode >= 200 && res.statusCode < 500) {
+          logOk(`Backend reachable (HTTP ${res.statusCode})`);
+        } else {
+          logWarn(`Backend returned HTTP ${res.statusCode}`);
+        }
+        resolve();
+      });
+    });
+    req.on("error", () => {
+      logWarn(`Could not reach backend at ${backendUrl}`);
+      logWarn("This is expected if the backend is not yet deployed");
+      resolve();
+    });
+    req.on("timeout", () => {
+      req.destroy();
+      logWarn("Backend connection timed out");
+      resolve();
+    });
+  });
+}
+
+// ── Post-install ──────────────────────────────────────────────
+
+function showNextSteps() {
+  console.log("\n\x1b[32m=== Installation Complete ===\x1b[0m\n");
+  console.log("Next steps:\n");
+
+  if (installClaude || installAll) {
+    console.log("  1. Restart Claude Code or start a new session");
+    console.log("  2. Run /cmscoder-login to authenticate");
+    console.log("  3. Run /cmscoder-status to verify your session");
+  }
+
+  if (installOpencode || installAll) {
+    console.log("  4. Configure OpenCode to use cmscoder hooks and skills");
+    console.log(`     (OpenCode adapter structure is in ${CLAUDE_TARGET}/adapters/opencode/)`);
+  }
+
+  console.log(`\nPlugin directory: ${CLAUDE_TARGET}\n`);
+
+  if (dryRun) {
+    console.log("\x1b[33mThis was a dry run. No files were modified.\x1b[0m");
+  }
+}
+
+// ── Main ──────────────────────────────────────────────────────
+
+(async () => {
+  console.log("\x1b[34mcmscoder Plugin Installer v0.2.0 (Node.js)\x1b[0m\n");
+
+  await ensureRuntimeSelected();
+  await ensureBackendUrl();
+
+  if (installClaude || installAll) installClaudeCode();
+  if (installOpencode || installAll) doInstallOpencode();
+
+  await verifyConnectivity();
+  showNextSteps();
+})().catch((e) => {
+  logError(e.message);
+  process.exit(1);
+});
