@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"cmscoder-user-service/internal/cache"
+	"cmscoder-user-service/internal/service/modelkey"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/util/guid"
 )
@@ -16,12 +17,13 @@ const (
 
 // Service manages user sessions.
 type Service struct {
-	cache *cache.MemoryCache
+	cache       *cache.MemoryCache
+	modelKeySvc *modelkey.Service
 }
 
 // New creates a new session service.
-func New(c *cache.MemoryCache) *Service {
-	return &Service{cache: c}
+func New(c *cache.MemoryCache, modelKeySvc *modelkey.Service) *Service {
+	return &Service{cache: c, modelKeySvc: modelKeySvc}
 }
 
 // RefreshInput is the input for refreshing a session.
@@ -95,7 +97,13 @@ func (s *Service) Revoke(ctx context.Context, in RevokeInput) error {
 	}
 
 	now := time.Now()
-	return s.cache.RevokeSession(ctx, sessionId, now)
+	if err := s.cache.RevokeSession(ctx, sessionId, now); err != nil {
+		return err
+	}
+
+	// Revoke associated model API key.
+	s.modelKeySvc.RevokeModelKey(ctx, sessionId)
+	return nil
 }
 
 // IntrospectInput is the input for introspecting a session.

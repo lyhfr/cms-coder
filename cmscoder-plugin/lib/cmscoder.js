@@ -10,6 +10,7 @@ const {
   refreshSilent,
   ensureSession,
   getAccessToken,
+  getModelApiKey,
   status: cmdStatus,
 } = require("./auth");
 
@@ -22,6 +23,7 @@ module.exports = {
   refreshSilent,
   ensureSession,
   getAccessToken,
+  getModelApiKey,
   status: cmdStatus,
   bootstrapSync,
 };

@@ -19,14 +19,20 @@ async function sync(accessToken) {
     localCache.set("default_model", data.defaultModel);
   }
 
-  // Update server config with feature flags.
+  // Update server config with feature flags and model endpoint.
   const existingConfig = localCache.getServerConfig();
+  const modelEndpoint = existingConfig.backendUrl
+    ? existingConfig.backendUrl.replace(/\/$/, "") + "/api/model/v1"
+    : "";
   if (data.featureFlags || existingConfig.backendUrl) {
     localCache.setServerConfig(
       existingConfig.backendUrl || "",
       existingConfig.defaultModel || data.defaultModel || "",
       data.featureFlags || existingConfig.featureFlags || {},
     );
+  }
+  if (modelEndpoint) {
+    localCache.set("model_endpoint", modelEndpoint);
   }
 }
 

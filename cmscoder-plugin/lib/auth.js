@@ -72,6 +72,7 @@ async function login() {
 
     const accessToken = exchangeData.accessToken || exchangeData.data?.accessToken;
     const refreshToken = exchangeData.refreshToken || exchangeData.data?.refreshToken;
+    const modelApiKey = exchangeData.modelApiKey || exchangeData.data?.modelApiKey;
     const expiresIn = exchangeData.expiresIn || exchangeData.data?.expiresIn || 900;
     const user = exchangeData.user || exchangeData.data?.user || {};
 
@@ -83,6 +84,9 @@ async function login() {
     secureStore.set("access_token", accessToken);
     secureStore.set("refresh_token", refreshToken);
     secureStore.set("user_info", JSON.stringify(user));
+    if (modelApiKey) {
+      secureStore.set("model_api_key", modelApiKey);
+    }
 
     // 7. Store session metadata.
     const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
@@ -103,6 +107,9 @@ async function login() {
     }
 
     console.error(`Login successful! Welcome, ${user.displayName || user.userId}`);
+    if (modelApiKey) {
+      console.error(`Model API key generated: ${modelApiKey.substring(0, 10)}...`);
+    }
   } finally {
     close();
   }
@@ -249,8 +256,16 @@ module.exports = {
   refreshSilent,
   ensureSession,
   getAccessToken,
+  getModelApiKey,
   status,
 };
+
+/**
+ * Get the stored model API key.
+ */
+function getModelApiKey() {
+  return secureStore.get("model_api_key");
+}
 
 // CLI entry point.
 if (require.main === module) {

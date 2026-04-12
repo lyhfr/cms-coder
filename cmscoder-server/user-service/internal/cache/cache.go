@@ -16,6 +16,8 @@ const (
 	prefixUserSession   = "cmscoder:user_session:"
 	prefixUser          = "cmscoder:user:"
 	prefixUserByIamId   = "cmscoder:user_iam:"
+	prefixModelKey      = "cmscoder:model_key:"
+	prefixModelKeyBySession = "cmscoder:model_key_session:"
 )
 
 // MemoryCache provides in-memory caching for auth data.
@@ -316,4 +318,82 @@ func (c *MemoryCache) GetUserByIamId(ctx context.Context, iamUserId string) (*Us
 	}
 	userId := v.String()
 	return c.GetUser(ctx, userId)
+}
+
+// ── Model Key ──────────────────────────────────────────────
+
+// ModelKey represents a model API key in cache.
+type ModelKey struct {
+	ModelApiKey    string    `json:"modelApiKey"`
+	UserId         string    `json:"userId"`
+	SessionId      string    `json:"sessionId"`
+	AgentType      string    `json:"agentType"`
+	PluginInstance string    `json:"pluginInstance"`
+	ExpiresAt      time.Time `json:"expiresAt"`
+}
+
+// SetModelKey stores a model API key.
+func (c *MemoryCache) SetModelKey(ctx context.Context, mk *ModelKey, ttl time.Duration) error {
+	if err := c.cache.Set(ctx, prefixModelKey+mk.ModelApiKey, mk, ttl); err != nil {
+		return err
+	}
+	// Index by session for revocation.
+	return c.cache.Set(ctx, prefixModelKeyBySession+mk.SessionId, mk.ModelApiKey, ttl)
+}
+
+// GetModelKey retrieves a model API key.
+func (c *MemoryCache) GetModelKey(ctx context.Context, modelApiKey string) (*ModelKey, error) {
+	v, err := c.cache.Get(ctx, prefixModelKey+modelApiKey)
+	if err != nil {
+		return nil, err
+	}
+	if v.IsNil() {
+		return nil, nil
+	}
+	var mk ModelKey
+	if err := v.Struct(&mk); err != nil {
+		return nil, err
+	}
+	return &mk, nil
+}
+
+// DeleteModelKey deletes a model API key and its session index.
+func (c *MemoryCache) DeleteModelKey(ctx context.Context, modelApiKey string) error {
+	mk, err := c.GetModelKey(ctx, modelApiKey)
+	if err != nil {
+		return err
+	}
+	if mk == nil {
+		return nil
+	}
+	c.cache.Remove(ctx, prefixModelKey+modelApiKey)
+	c.cache.Remove(ctx, prefixModelKeyBySession+mk.SessionId)
+	return nil
+}
+
+// GetModelKeyBySession retrieves a model API key by session ID.
+func (c *MemoryCache) GetModelKeyBySession(ctx context.Context, sessionId string) (*ModelKey, error) {
+	v, err := c.cache.Get(ctx, prefixModelKeyBySession+sessionId)
+	if err != nil {
+		return nil, err
+	}
+	if v.IsNil() {
+		return nil, nil
+	}
+	modelApiKey := v.String()
+	return c.GetModelKey(ctx, modelApiKey)
+}
+
+// DeleteModelKeyBySession deletes a model API key indexed by session ID.
+func (c *MemoryCache) DeleteModelKeyBySession(ctx context.Context, sessionId string) error {
+	v, err := c.cache.Get(ctx, prefixModelKeyBySession+sessionId)
+	if err != nil {
+		return err
+	}
+	if !v.IsNil() {
+		modelApiKey := v.String()
+		c.cache.Remove(ctx, prefixModelKey+modelApiKey)
+	}
+	c.cache.Remove(ctx, prefixModelKeyBySession+sessionId)
+	return nil
 }

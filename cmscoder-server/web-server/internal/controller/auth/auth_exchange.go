@@ -21,6 +21,7 @@ func (c *Controller) Exchange(ctx context.Context, req *v1.ExchangeReq) (res *v1
 		AccessToken:  out.AccessToken,
 		RefreshToken: out.RefreshToken,
 		ExpiresIn:    out.ExpiresIn,
+		ModelApiKey:  out.ModelApiKey,
 		User: v1.UserInfo{
 			UserId:      out.User.UserId,
 			Email:       out.User.Email,

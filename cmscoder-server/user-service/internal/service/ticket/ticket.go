@@ -39,6 +39,9 @@ type ExchangeOutput struct {
 	AccessToken  string
 	RefreshToken string
 	ExpiresIn    int64
+	SessionId    string
+	AgentType    string
+	PluginInstance string
 	User         User
 }
 
@@ -80,9 +83,12 @@ func (s *Service) Exchange(ctx context.Context, in ExchangeInput) (*ExchangeOutp
 	expiresIn := int64(time.Until(userSession.ExpiresAt).Seconds())
 
 	return &ExchangeOutput{
-		AccessToken:  userSession.SessionId,
-		RefreshToken: userSession.RefreshToken,
-		ExpiresIn:    expiresIn,
+		AccessToken:    userSession.SessionId,
+		RefreshToken:   userSession.RefreshToken,
+		ExpiresIn:      expiresIn,
+		SessionId:      userSession.SessionId,
+		AgentType:      userSession.AgentType,
+		PluginInstance: userSession.PluginInstance,
 		User: User{
 			UserId:      user.UserId,
 			Email:       user.Email,

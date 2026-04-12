@@ -8,6 +8,7 @@ import (
 	"cmscoder-user-service/internal/infra/iamclient"
 	"cmscoder-user-service/internal/service/iamcallback"
 	"cmscoder-user-service/internal/service/loginsession"
+	"cmscoder-user-service/internal/service/modelkey"
 	"cmscoder-user-service/internal/service/session"
 	"cmscoder-user-service/internal/service/ticket"
 	"cmscoder-user-service/internal/service/userprofile"
@@ -57,7 +58,8 @@ func mainFunc(ctx context.Context, parser *gcmd.Parser) (err error) {
 	// Initialize services.
 	loginSessionSvc := loginsession.New(memCache)
 	ticketSvc := ticket.New(memCache)
-	sessionSvc := session.New(memCache)
+	modelKeySvc := modelkey.New(memCache)
+	sessionSvc := session.New(memCache, modelKeySvc)
 	userProfileSvc := userprofile.New(memCache)
 	iamCallbackSvc := iamcallback.New(
 		iamClient,
@@ -75,6 +77,7 @@ func mainFunc(ctx context.Context, parser *gcmd.Parser) (err error) {
 		ticketSvc,
 		sessionSvc,
 		userProfileSvc,
+		modelKeySvc,
 	)
 
 	// Register routes.

@@ -104,6 +104,7 @@ type ExchangeOutput struct {
 	AccessToken  string `json:"accessToken"`
 	RefreshToken string `json:"refreshToken"`
 	ExpiresIn    int64  `json:"expiresIn"`
+	ModelApiKey  string `json:"modelApiKey"`
 	User         User   `json:"user"`
 }
 
@@ -219,6 +220,39 @@ func (c *Client) IntrospectSession(ctx context.Context, accessToken string) (*In
 	var apiRes struct {
 		Code int              `json:"code"`
 		Data IntrospectResult `json:"data"`
+	}
+	if err := gjson.Unmarshal([]byte(body), &apiRes); err != nil {
+		return nil, err
+	}
+	if apiRes.Code != 0 {
+		return nil, gerror.Newf("user-service error, code: %d", apiRes.Code)
+	}
+	return &apiRes.Data, nil
+}
+
+// ModelKeyInfo contains validated model key information.
+type ModelKeyInfo struct {
+	UserId         string `json:"userId"`
+	SessionId      string `json:"sessionId"`
+	AgentType      string `json:"agentType"`
+	PluginInstance string `json:"pluginInstance"`
+	ExpiresAt      string `json:"expiresAt"`
+}
+
+// ValidateModelKey calls user-service to validate a model API key.
+func (c *Client) ValidateModelKey(ctx context.Context, modelApiKey string) (*ModelKeyInfo, error) {
+	res, err := c.httpCli.Post(ctx, c.baseURL+"/user-service/auth/model-keys/validate", g.Map{
+		"modelApiKey": modelApiKey,
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+
+	body := res.ReadAllString()
+	var apiRes struct {
+		Code int          `json:"code"`
+		Data ModelKeyInfo `json:"data"`
 	}
 	if err := gjson.Unmarshal([]byte(body), &apiRes); err != nil {
 		return nil, err

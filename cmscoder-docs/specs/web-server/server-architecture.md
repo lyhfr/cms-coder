@@ -67,9 +67,43 @@
 
 ## 8. 风险与待确认
 
-- 服务端是否需要同时兼容 OpenAI 风格与 Claude 风格接口
 - 模型路由规则与团队/项目策略来源待明确
 - 审计日志保留策略与合规边界待确认
+- 天启平台 API 格式与 OpenAI 格式的映射关系待确认
+
+## 9. Model API 设计
+
+### 9.1 临时 Model API Key
+
+登录 exchange 时服务端自动生成，特性：
+
+| 特性 | 说明 |
+|------|------|
+| 格式 | `cmsk_` + 32 字符 hex（16 字节随机） |
+| 绑定 | 与 user session + agentType + pluginInstanceId 绑定 |
+| 有效期 | 与 access_token 同步，session 过期即失效 |
+| 防滥用 | 校验 key 时同时检查 session 是否有效；登出时联动吊销 |
+
+### 9.2 端点列表
+
+| 端点 | 方法 | 认证方式 | 说明 |
+|------|------|---------|------|
+| `/api/model/v1/chat/completions` | POST | Model API Key (Bearer) | OpenAI 兼容聊天补全，支持流式 SSE |
+| `/api/model/v1/models` | GET | Model API Key (Bearer) | 列出可用模型 |
+
+### 9.3 安全链路
+
+```
+插件端登录 exchange
+  → user-service 生成 modelApiKey（绑定 session）
+  → 返回给插件端
+  → 插件端存储到 secureStore
+  → Code Agent 使用 modelApiKey 调用 /api/model/v1/chat/completions
+  → web-server 通过 ModelAuth 中间件校验 key 有效性
+  → 同时校验关联 session 是否仍有效
+  → 校验通过后转发请求到上游天启平台
+  → 登出时联动吊销 modelApiKey
+```
 
 ## 10. 本地验证部署
 

@@ -6,6 +6,7 @@ import (
 
 	"cmscoder-web-server/internal/clients/userclient"
 	"cmscoder-web-server/internal/controller/auth"
+	"cmscoder-web-server/internal/controller/model"
 	"cmscoder-web-server/internal/middleware"
 
 	"github.com/gogf/gf/v2/frame/g"
@@ -41,10 +42,14 @@ func mainFunc(ctx context.Context, parser *gcmd.Parser) (err error) {
 	}
 
 	var (
-		s           = g.Server()
-		userClient  = userclient.New(userServiceBaseURL)
-		authCtrl    = auth.New(userClient, iamCfg)
-		rateLimiter = middleware.NewRateLimiter(100, time.Minute)
+		s              = g.Server()
+		userClient     = userclient.New(userServiceBaseURL)
+		authCtrl       = auth.New(userClient, iamCfg)
+		rateLimiter    = middleware.NewRateLimiter(100, time.Minute)
+		upstreamBaseURL = g.Cfg().MustGet(ctx, "model.upstreamBaseURL").String()
+		upstreamApiKey  = g.Cfg().MustGet(ctx, "model.upstreamApiKey").String()
+		defaultModel    = g.Cfg().MustGet(ctx, "model.defaultModel").String()
+		modelCtrl      = model.New(upstreamBaseURL, upstreamApiKey, defaultModel)
 	)
 
 	s.Use(ghttp.MiddlewareHandlerResponse)
@@ -58,6 +63,12 @@ func mainFunc(ctx context.Context, parser *gcmd.Parser) (err error) {
 
 		// Public auth endpoints.
 		group.Bind(authCtrl)
+
+		// Model endpoints with model API key auth.
+		group.Group("/", func(group *ghttp.RouterGroup) {
+			group.Middleware(middleware.ModelAuth(userClient))
+			group.Bind(modelCtrl)
+		})
 
 		// Protected endpoints requiring authentication.
 		group.Group("/", func(group *ghttp.RouterGroup) {

@@ -14,6 +14,7 @@ type ExchangeRes struct {
 	AccessToken  string     `json:"accessToken"`
 	RefreshToken string     `json:"refreshToken"`
 	ExpiresIn    int64      `json:"expiresIn"`
+	ModelApiKey  string     `json:"modelApiKey"`
 	User         UserInfo   `json:"user"`
 }
 

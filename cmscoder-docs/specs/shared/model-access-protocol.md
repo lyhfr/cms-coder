@@ -12,16 +12,19 @@
 ## 3. 设计范围
 
 - 插件端模型入口统一重定向
-- 服务端统一模型 API
-- OpenAI 风格、Claude 风格或企业统一风格协议映射
+- 服务端统一模型 API（OpenAI 兼容格式）
+- 临时 Model API Key 生成、校验与防滥用
 - 模型 ID 映射、默认模型、模型白名单
 - usage、trace、错误码统一
 
 ## 4. 关键场景或流程
 
-- 插件发起标准模型请求
-- 服务端完成身份校验和模型路由
-- 服务端将请求转换为天启平台协议
+- 插件端登录 exchange 时获取临时 Model API Key
+- Model API Key 与 user session 绑定，session 过期/登出即失效
+- 插件端配置 Code Agent 使用 cmscoder 模型端点
+- Code Agent 发起标准 OpenAI 格式请求到 `/api/model/v1/chat/completions`
+- web-server 通过 ModelAuth 中间件校验 key 有效性 + session 状态
+- 校验通过后转发请求到上游天启平台
 - 服务端回传统一响应、usage 与 trace 信息
 - 上游失败时返回统一错误语义
 
@@ -29,14 +32,31 @@
 
 - 插件端不直接访问天启大模型平台
 - 服务端统一补充系统级鉴权信息
-- 模型路由需要支持用户、团队、项目和策略维度
+- Model API Key 绑定 user session + agentType + pluginInstanceId
 - 协议转换层必须向插件屏蔽底层差异
 
 ## 6. 接口、数据或配置
 
-- 插件端接口：模型列表、默认模型、统一调用入口
-- 服务端配置：模型映射表、白名单、默认路由、熔断规则
-- tracing 数据：request id、trace id、usage、错误分类
+### 6.1 模型端点
+
+| 端点 | 方法 | 认证 | 说明 |
+|------|------|------|------|
+| `/api/model/v1/chat/completions` | POST | Bearer Model API Key | OpenAI 兼容，支持流式 SSE |
+| `/api/model/v1/models` | GET | Bearer Model API Key | 列出可用模型 |
+
+### 6.2 Model API Key
+
+- 格式：`cmsk_` + 32 字符 hex
+- 生成时机：登录 exchange 成功时
+- 绑定：userId + sessionId + agentType + pluginInstanceId
+- 有效期：与 access_token 同步
+- 吊销：登出或 session 过期时自动失效
+
+### 6.3 配置
+
+- 服务端配置 `[model]` 段：`upstreamBaseURL`、`upstreamApiKey`、`defaultModel`
+- 插件端缓存：`model_endpoint`（bootstrap 时自动设置）
+- 插件端安全存储：`model_api_key`（exchange 时保存）
 
 ## 7. 非功能要求
 
@@ -46,12 +66,13 @@
 
 ## 8. 风险与待确认
 
-- 是否需要同时兼容同步与流式响应
-- 协议转换层是否需要抽象成独立模块
-- 天启平台接口限制、幂等规则和错误码规范待明确
+- 天启平台 API 格式与 OpenAI 格式的映射关系需确认
+- 生产环境是否需要 Redis 替代内存缓存以支持多实例
 
 ## 9. 验收标准
 
 - 所有模型请求可统一走服务端入口
 - 插件端不暴露上游系统级密钥
+- Model API Key 仅在 session 有效期间可用
+- 登出后 Model API Key 立即失效
 - 模型映射、错误码、usage 与 trace 信息具备一致性
