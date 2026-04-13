@@ -34,10 +34,13 @@
 - 服务端代理登录入口、login session/state 管理、IAM callback、code 换 token
 - 用户信息查询、cmscoder 会话签发、登出与刷新
 
-### 阶段二：接入打通
+### 阶段二：接入打通（当前阶段 - Model Token 认证实现）
 
-- Claude Code / OpenCode 双适配
-- 服务端模型统一入口
+- **【当前重点】Model Token 认证机制实现**
+  - Claude Code：`apiKeyHelper` + HMAC 签名 + 短期 JWT
+  - OpenCode：本地代理（UDS/Named Pipe）+ 动态密钥
+- 服务端模型统一入口改造（Composite Token → JWT）
+- 跨平台本地代理实现（macOS/Linux UDS + Windows Named Pipe）
 - 基础状态展示与基础会话增强
 
 ### 阶段三：插件增强
@@ -84,7 +87,7 @@
 
 #### 服务端
 
-- 实现 `<cmscoder-backend>/api/auth/login-sessions` 和浏览器授权入口
+- 实现 `<cmscoder-backend>/api/auth/login` 和浏览器授权入口
 - 管理 `login session`、`state` 与 `localPort` 映射
 - 实现 `<cmscoder-backend>/api/auth/callback` 回调处理
 - 调 `<iam>` 完成 code 换 token 与用户信息查询

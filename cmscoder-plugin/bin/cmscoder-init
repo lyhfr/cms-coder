@@ -188,6 +188,18 @@ function installClaudeCode() {
     path.join(CLAUDE_CONFIG_DIR, "skills", "cmscoder-status", "SKILL.md"),
   );
 
+  // CLAUDE.md — system prompt
+  copyFile(
+    path.join(PLUGIN_SOURCE_DIR, "adapters", "claude-code", "CLAUDE.md"),
+    path.join(CLAUDE_CONFIG_DIR, "CLAUDE.md"),
+  );
+
+  // settings.json — hooks and permissions configuration
+  copyFile(
+    path.join(PLUGIN_SOURCE_DIR, "adapters", "claude-code", "settings.json"),
+    path.join(CLAUDE_CONFIG_DIR, "settings.json"),
+  );
+
   // Set CMSCODER_PLUGIN_DIR in shell profile
   if (!dryRun) {
     const exportLine = `export CMSCODER_PLUGIN_DIR="${CLAUDE_TARGET}"`;

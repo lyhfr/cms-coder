@@ -13,7 +13,7 @@
 
 ## 3. 当前结论
 
-截至当前，**插件端核心骨架代码已完成，服务端骨架已完成，联调待服务端部署后进行**。
+截至当前，**插件端核心骨架代码已完成，服务端骨架已完成，Model Token 认证机制设计已完成，即将开始代码实现**。
 
 ## 4. 功能状态总览
 
@@ -21,8 +21,8 @@
 |---|---|---|
 | Feature 0：插件基础适配与初始化 | 已完成 | 插件目录结构、安装脚本、Shared Core + Adapters 架构、Claude Code hooks/skills |
 | Feature 1：IAM 登录与会话闭环 | 进行中 | 插件端登录编排、回环服务、安全存储、token 交换代码已完成，待与 web-server + user-service 联调 |
-| Feature 2：统一模型接入 | 已完成 | OpenAI 兼容端点 `/api/model/v1/chat/completions` 已完成，Composite Token 安全机制（modelApiKey + accessToken 绑定）已实现，防滥用校验（session 绑定 + 双重校验）已完成，待联调验证 |
-| Feature 3：插件基础体验增强 | 进行中 | session-start hook 和 status-provider 已实现，待联调验证 |
+| **Feature 2：统一模型接入** | **🚧 即将实现** | **设计已完成，即将开始代码实现**：<br>- Model Token 认证机制（apiKeyHelper + HMAC 签名 + 短期 JWT）<br>- 跨平台本地代理（macOS/Linux UDS + Windows Named Pipe）<br>- OpenAI 兼容端点 `/api/model/v1/chat/completions` 已完成 |
+| Feature 3：插件基础体验增强 | 进行中 | session-start hook 和 status-provider 已实现，待 model-token 命令完成后联调 |
 | Feature 4：工作流增强与上下文治理 | 进行中 | CLAUDE.md 系统提示和企业规范已注入，上下文治理策略已设计 |
 | Feature 5：工具治理与权限控制 | 未开始 | hooks 占位脚本已创建，具体策略待实现 |
 | Feature 6：企业治理能力 | 未开始 | 包含配额、限流、审计和追踪 |
@@ -36,13 +36,15 @@
 | CLI 入口 + 模块导出 | `lib/cmscoder.js` | 已完成 |
 | 认证编排 | `lib/auth.js` | 已完成 |
 | 回环 HTTP 服务器 | `lib/callback-server.js` | 已完成 |
-| 安全存储 + 本地缓存 | `lib/storage.js` | 已完成（含 model_api_key + composite_token 存储） |
+| 安全存储 + 本地缓存 | `lib/storage.js` | 已完成（含 access_token + refresh_token 存储） |
 | HTTP API 客户端 | `lib/http-client.js` | 已完成 |
 | 服务端配置同步 | `lib/bootstrap.js` | 已完成 |
 | Claude Code 系统提示 | `adapters/claude-code/CLAUDE.md` | 已完成 |
 | Claude Code hooks | `adapters/claude-code/hooks/` | 已完成（session-start 有效，pre/post 占位） |
 | Claude Code skills | `adapters/claude-code/skills/` | 已完成（login、status） |
 | OpenCode skills | `adapters/opencode/skills/` | 骨架完成（hooks 待 OpenCode 版本确认） |
+| **model-token 命令** | **`lib/cmscoder.js`** | **🚧 即将实现**（Claude Code apiKeyHelper 调用） |
+| **本地代理** | **`lib/model-proxy.js`** | **🚧 即将实现**（OpenCode 跨平台本地代理） |
 
 ### 4.2 服务端代码完成情况
 
@@ -55,7 +57,9 @@
 | web-server | Tracing 中间件 | 已完成 |
 | web-server | user-service HTTP 客户端 | 已完成 |
 | web-server | Model API 端点 (`/api/model/v1/*`) | 已完成（OpenAI 兼容，支持流式 SSE） |
-| web-server | Model Auth 中间件 | 已完成（Composite Token 解析 + modelApiKey 校验 + session 绑定校验） |
+| web-server | Model Auth 中间件 | 已完成（Composite Token 解析 + modelApiKey 校验 + session 绑定校验）→ **🚧 待改造为 Model Token（JWT）校验** |
+| web-server | **Model Token 签发端点** | **🚧 即将实现**（`/api/auth/model-token`，HMAC 签名校验 + 短期 JWT 签发，TTL 可配置） |
+| web-server | **IP 绑定校验（可选）** | **🚧 即将实现**（通过配置启用，校验请求 IP 与 session 记录 IP） |
 | web-server | Model 代理控制器 | 已完成（转发至上游天启平台） |
 | cmscoder-server/user-service | 工程骨架 + 路由 | 已完成 |
 | user-service | Login session 管理 | 已完成 |
@@ -63,6 +67,7 @@
 | user-service | Login ticket 生成与交换 | 已完成 |
 | user-service | Model API Key 生成/校验/吊销 | 已完成 |
 | user-service | Composite Token 生成（base64 组合 modelApiKey + accessToken） | 已完成 |
+| user-service | **plugin_secret 生成与存储** | **🚧 即将实现**（用于 Model Token HMAC 签名） |
 | user-service | Session refresh（含 token 轮换） | 已完成 |
 | user-service | Session revoke（含 Model Key 联动吊销） | 已完成 |
 | user-service | Session introspect | 已完成 |
@@ -80,6 +85,7 @@
 | [opencode-adapter.md](../plugin/opencode-adapter.md) | 已更新 | 填入当前状态和待确认事项 |
 | [iam-auth-session.md](../user-service/iam-auth-session.md) | 已完成 | 登录与会话设计（已路径修正） |
 | [model-access-protocol.md](../shared/model-access-protocol.md) | 仅文档完成 | 待模型接入阶段补充 |
+| [model-access-proxy.md](../shared/model-access-proxy.md) | 仅文档完成 | API Key 管理端点、Anthropic 接口、设备指纹/请求签名、statistic-service 均未实现，待后续阶段 |
 | [plugin-workflow-enhancement.md](../plugin/plugin-workflow-enhancement.md) | 已更新 | 基于已实现代码更新 |
 | [tool-governance-permission-control.md](../plugin/tool-governance-permission-control.md) | 仅文档完成 | 待工具治理阶段实现 |
 | [quota-audit-observability.md](../shared/quota-audit-observability.md) | 仅文档完成 | 待治理阶段实现 |

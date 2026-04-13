@@ -78,9 +78,81 @@ cmscoder-plugin/
 
 | 模块 | 职责 | 主要函数/子命令 |
 |------|------|---------|
-| `cmscoder.js` | CLI 入口 + 模块导出 | `login`, `logout`, `refresh`, `status`, `token`, `ensure-session` |
+| `cmscoder.js` | CLI 入口 + 模块导出 | `login`, `logout`, `refresh`, `status`, `token`, `ensure-session`, **model-token** |
 
 直接运行时作为命令行工具，`require()` 时作为 API 模块。
+
+#### 5.2.1.1 Model Token 动态获取机制（apiKeyHelper 模式）
+
+**背景**：利用 Claude Code 原生 `apiKeyHelper` 机制，实现无静态 API Key 的模型认证。Model Token 为短期 JWT（默认 5分钟，可配置），通过 HMAC 签名请求获取。
+
+**核心流程**：
+
+```
+Claude Code 调用 apiKeyHelper
+        │
+        ▼
+┌─ cmscoder.js model-token ──────────────────────┐
+│                                                  │
+│  1. 从安全存储读取 access_token                   │
+│  2. 从安全存储读取 plugin_secret                  │
+│                                                  │
+│  3. access_token 是否有效？                       │
+│     ├─ 有效 → 继续                                │
+│     └─ 过期 → 用 refresh_token 静默刷新           │
+│               ├─ 成功 → 继续                      │
+│               └─ 失败 → stderr 提示重新登录       │
+│                                                  │
+│  4. 构造签名请求：                                 │
+│     timestamp = now()                            │
+│     nonce = random()                             │
+│     signature = HMAC_SHA256(                     │
+│       access_token + timestamp + nonce,          │
+│       plugin_secret                              │
+│     )                                            │
+│                                                  │
+│  5. POST /api/auth/model-token                   │
+│     Body: { accessToken, timestamp, nonce,       │
+│             signature, pluginInstanceId }         │
+│                                                  │
+│  6. stdout → model_token（给 Claude Code 使用）   │
+└──────────────────────────────────────────────────┘
+```
+
+**Claude Code 配置**（`~/.claude/settings.json`）：
+
+```json
+{
+  "apiKeyHelper": "node ~/.cmscoder/plugin/lib/cmscoder.js model-token",
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://cmscoder.company.com/api/model/v1",
+    "CLAUDE_CODE_API_KEY_HELPER_TTL_MS": "240000"
+  }
+}
+```
+
+**配置说明**：
+- `apiKeyHelper`：Claude Code 每次需要 API Key 时执行的命令
+- `CLAUDE_CODE_API_KEY_HELPER_TTL_MS`：调用间隔（建议略小于 modelTokenTTL，如 4分钟）
+- 命令输出（stdout）作为 API Key 使用
+- 命令错误（stderr + exit 非 0）会提示用户重新登录
+
+**会话状态处理**：
+
+| 场景 | 处理流程 |
+|------|---------|
+| **首次请求（刚登录）** | access_token 有效 → 直接构造签名请求获取 model_token |
+| **长时间未对话（access_token 过期）** | apiKeyHelper 检测到过期 → 用 refresh_token 静默刷新 → 成功后获取 model_token |
+| **Session 已过期（refresh_token 过期）** | 静默刷新失败 → apiKeyHelper 输出错误到 stderr，exit 非 0 → Claude Code 提示重新登录 |
+
+**安全特性**：
+
+| 机制 | 说明 |
+|------|------|
+| **短期 Token** | 默认 5分钟有效期，泄露窗口极短 |
+| **HMAC 签名** | 需要 plugin_secret 构造有效请求 |
+| **Timestamp + Nonce** | 防重放攻击 |
+| **IP 绑定（可选）** | 服务端配置启用，防止 Token 被带走使用 |
 
 #### 5.2.2 认证层 (lib/auth.js)
 
@@ -115,8 +187,7 @@ cmscoder-plugin/
 - `access_token` — 会话访问凭证（= sessionId）
 - `refresh_token` — 刷新凭证
 - `user_info` — 用户信息 JSON
-- `model_api_key` — 原始 Model API Key（仅供参考）
-- `composite_token` — 复合凭证（`cmscoderv1_<base64(modelApiKey:accessToken)>`），实际用于模型端点调用
+- `plugin_secret` — HMAC 签名密钥，用于获取 model_token
 
 #### 5.2.4 回环服务层 (lib/callback-server.js)
 
@@ -124,7 +195,115 @@ cmscoder-plugin/
 |------|------|------|
 | `callback-server.js` | 轻量 Node.js HTTP 服务，接收 login_ticket | 监听 `127.0.0.1` 随机端口，5 分钟超时自动退出 |
 
-#### 5.2.5 HTTP 客户端 (lib/http-client.js)
+#### 5.2.5 OpenCode 适配（本地代理模式）
+
+OpenCode 不支持 `apiKeyHelper`，采用**本地代理模式**：
+
+**架构**：
+```
+OpenCode ──▶ localhost:8080 ──▶ cmscoder-web-server
+            (本地代理)           (模型端点)
+```
+
+**本地代理实现**（`lib/model-proxy.js`）：
+
+| 功能 | 说明 |
+|------|------|
+| 自动获取 Model Token | 启动时调用 `model-token` 命令获取 |
+| Token 缓存与刷新 | 缓存 Token，过期前自动刷新 |
+| 请求转发 | 添加 Authorization Header 后转发到服务端 |
+| 会话恢复 | Token 获取失败时提示用户重新登录 |
+| **来源验证** | **校验请求是否来自 OpenCode 进程** |
+
+**安全防护机制（跨平台）**：
+
+本地代理监听 `127.0.0.1`，但仅靠本地监听不足以防止攻击（用户可用 curl 直接请求）。增加以下防护：
+
+| 防护层 | 机制 | 跨平台支持 |
+|--------|------|-----------|
+| **1. 动态密钥** | 启动时生成随机密钥，请求需携带 | ✅ 全平台 |
+| **2. 来源 IP 限制** | 仅接受 127.0.0.1/::1 连接 | ✅ 全平台 |
+| **3. Named Pipe（Windows）/UDS（Unix）** | 替代 TCP，文件权限控制 | ✅ Windows Named Pipe<br>✅ macOS/Linux UDS |
+
+**推荐方案：动态密钥 + 平台最优传输**
+
+| 平台 | 传输方式 | 安全机制 |
+|------|---------|---------|
+| **macOS** | Unix Domain Socket | 文件权限 600 + 动态密钥 |
+| **Linux** | Unix Domain Socket | 文件权限 600 + 动态密钥 |
+| **Windows** | Named Pipe | ACL 限制当前用户 + 动态密钥 |
+
+**实现逻辑**：
+
+```javascript
+// 本地代理启动时
+const proxySecret = generateRandomKey(); // 32字节随机
+
+if (process.platform === 'win32') {
+  // Windows: Named Pipe
+  const pipePath = `\\\\.\\pipe\\cmscoder-model-proxy-${uid}`;
+  server.listen(pipePath);
+  // Named Pipe 自动继承进程 ACL，仅当前用户可访问
+} else {
+  // macOS/Linux: Unix Domain Socket
+  const socketPath = `${os.homedir()}/.cmscoder/model-proxy.sock`;
+  server.listen(socketPath);
+  fs.chmodSync(socketPath, 0o600); // 仅当前用户可访问
+}
+
+// 将传输地址和密钥写入 OpenCode 配置
+updateOpenCodeConfig({
+  baseURL: getPlatformBaseURL(),  // 根据平台生成
+  apiKey: proxySecret             // 每个请求需携带
+});
+```
+
+**OpenCode 配置（自动写入）**：
+
+| 平台 | 配置示例 |
+|------|---------|
+| macOS/Linux | `{"baseURL": "http+unix://%2FUsers%2Fuser%2F.cmscoder%2Fmodel-proxy.sock", "apiKey": "secret"}` |
+| Windows | `{"baseURL": "http://localhost:8080", "apiKey": "secret"}` + 仅 127.0.0.1 |
+
+**请求校验流程**：
+```
+1. 接收请求
+2. 校验来源 IP 为 127.0.0.1/::1（Windows TCP 模式）
+   或 Connection 来自 UDS/Named Pipe（Unix/Windows 命名管道模式）
+3. 校验 X-Proxy-Secret Header 是否匹配
+4. 校验 User-Agent 是否包含 "OpenCode"
+5. 全部通过 → 添加 Model Token 后转发到服务端
+```
+
+**CLI 命令**：
+```bash
+# 启动本地代理（自动选择平台最优传输）
+node ~/.cmscoder/plugin/lib/cmscoder.js model-proxy
+
+# 停止本地代理
+node ~/.cmscoder/plugin/lib/cmscoder.js model-proxy stop
+
+# 查看状态
+node ~/.cmscoder/plugin/lib/cmscoder.js model-proxy status
+```
+
+**OpenCode 配置**（自动写入 `~/.opencode/config.json`）：
+```json
+{
+  "provider": {
+    "cmscoder-local": {
+      "baseURL": "http+unix://%2FUsers%2Fuser%2F.cmscoder%2Fmodel-proxy.sock",
+      "apiKey": "random_proxy_secret_32chars",
+      "models": {
+        "gpt-4": { "id": "gpt-4" }
+      }
+    }
+  },
+  "model": "cmscoder-local/gpt-4"
+}
+```
+
+#### 5.2.6 HTTP 客户端 (lib/http-client.js)
 
 | 模块 | 职责 | 主要函数 |
 |------|------|---------|

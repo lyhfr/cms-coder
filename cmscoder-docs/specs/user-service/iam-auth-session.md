@@ -153,16 +153,81 @@ Feature 1 不单独建设 `cmscoder-plugind`：
 
 ### 5.5 Token 与票据模型
 
-| 票据 | 用途 | TTL | 存储 |
-|------|------|-----|------|
-| `login session` | 登录初始化时创建 | 5 分钟 | 内存（生产用 Redis） |
-| `state` | 与 login session 绑定，防 CSRF | 同 login session | 内存（生产用 Redis） |
-| `login_ticket` | 浏览器回跳携带的一次性票据 | 60 秒，消费后立即失效 | 内存（生产用 Redis） |
-| `access_token` | 插件访问 web-server 的短期凭证（= sessionId） | 15 分钟 | 插件端内存 |
-| `refresh_token` | 插件续期使用的长期凭证 | 7 天，每次刷新轮换 | 关系型数据库 |
-| `session_id` | 服务端会话主键 | 绑定 refresh_token 生命周期 | 关系型数据库 |
-| `modelApiKey` | 模型 API Key（`cmscoder_` + 32 hex） | 与 session 同步 | 内存（生产用 Redis） |
-| `compositeToken` | 复合凭证，绑定 modelApiKey + accessToken | 与 session 同步 | 插件端安全存储 |
+| 票据 | 用途 | TTL | 存储 | 刷新方式 |
+|------|------|-----|------|---------|
+| `login session` | 登录初始化时创建 | 5 分钟 | 内存（生产用 Redis） | 无需刷新 |
+| `state` | 与 login session 绑定，防 CSRF | 同 login session | 内存（生产用 Redis） | 无需刷新 |
+| `login_ticket` | 浏览器回跳携带的一次性票据 | 60 秒，消费后立即失效 | 内存（生产用 Redis） | 无需刷新 |
+| `access_token` | 插件访问 web-server 的短期凭证（= sessionId） | 15 分钟 | 插件端安全存储 | `/api/auth/refresh` |
+| `refresh_token` | 插件续期使用的长期凭证 | 7 天，每次刷新轮换 | 关系型数据库 | 登录重新获取 |
+| `session_id` | 服务端会话主键 | 绑定 refresh_token 生命周期 | 关系型数据库 | 无需刷新 |
+| `plugin_secret` | HMAC 签名密钥，用于获取 model_token | 随 session | 安全存储（Keychain/libsecret） | 无需刷新 |
+| `model_token` | 短期模型调用凭证（JWT） | **可配置（默认 5分钟）** | **内存（不持久化）** | **apiKeyHelper 自动获取** |
+
+### 4.7 Model Token 动态获取机制
+
+**设计目标**：
+1. 无静态 API Key，用户登录后自动获取
+2. 短期有效（默认 5分钟），泄露后可使用窗口极短
+3. HMAC 签名确保请求来自合法插件端
+
+**获取流程**：
+
+```
+Claude Code 调用 apiKeyHelper
+        │
+        ▼
+┌─ cmscoder.js model-token ──────────────────────┐
+│                                                  │
+│  1. 从安全存储读取 access_token                   │
+│  2. 从安全存储读取 plugin_secret                  │
+│                                                  │
+│  3. access_token 是否有效？                       │
+│     ├─ 有效 → 继续                                │
+│     └─ 过期 → 用 refresh_token 静默刷新           │
+│               ├─ 成功 → 继续                      │
+│               └─ 失败 → stderr 提示重新登录       │
+│                                                  │
+│  4. 构造签名请求：                                 │
+│     timestamp = now()                            │
+│     nonce = random()                             │
+│     signature = HMAC_SHA256(                     │
+│       access_token + timestamp + nonce,          │
+│       plugin_secret                              │
+│     )                                            │
+│                                                  │
+│  5. POST /api/auth/model-token                   │
+│     Body: { accessToken, timestamp, nonce,       │
+│             signature, pluginInstanceId }         │
+│                                                  │
+│  6. stdout → model_token（给 Claude Code 使用）   │
+└──────────────────────────────────────────────────┘
+```
+
+**服务端校验**：
+1. 校验 timestamp 在 ±30秒 内（防重放攻击）
+2. 校验 nonce 未被使用过（短期缓存，如 5分钟）
+3. introspect access_token 获取 session
+4. 从 session 中取出 plugin_secret
+5. 计算 expected_signature 并对比
+6. 如启用 IP 绑定（配置项），校验请求 IP 与 session 记录的 IP 一致
+7. 签发 model_token（短期 JWT，TTL 可配置）
+
+**会话状态处理**：
+
+| 场景 | 处理流程 |
+|------|---------|
+| **首次请求（刚登录）** | access_token 有效 → 直接构造签名请求获取 model_token |
+| **长时间未对话（access_token 过期）** | apiKeyHelper 检测到过期 → 用 refresh_token 静默刷新 → 成功后获取 model_token |
+| **Session 已过期（refresh_token 过期）** | 静默刷新失败 → apiKeyHelper 输出错误到 stderr，exit 非 0 → Claude Code 提示重新登录 |
+
+**安全收益**：
+| 场景 | 旧方案（Composite Token 7天） | 新方案（Model Token 5分钟） |
+|------|------------------------------|---------------------------|
+| Token 泄露后可使用窗口 | 7天 | 5分钟 |
+| 攻击者发现 Token 时间 | 可能数天后 | 最多 5分钟 |
+| 请求来源验证 | 无 | HMAC 签名 |
+| IP 绑定（可选） | 无 | 可配置 |
 
 ### 5.6 核心设计约束
 

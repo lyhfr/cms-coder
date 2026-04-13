@@ -29,11 +29,18 @@ node_modules/
 npm-debug.log*
 .cache/
 
+# ── Plugin runtime ─────────────────────────────────────────
+# 本地代理 socket 文件
+*.sock
+# OpenCode 配置（含动态密钥）
+.opencode/
+
 # ── IDE / Editor ────────────────────────────────────────────
 .claude/
 .trae/
 .idea/
 .vscode/
+.qoder/
 
 # ── OS ─────────────────────────────────────────────────────
 .DS_Store

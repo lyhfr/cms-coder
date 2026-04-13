@@ -62,15 +62,92 @@
 | `POST /api/auth/login` | POST | 无 | 创建登录 session，返回 loginId 和 browserUrl |
 | `GET /api/auth/login/{loginId}/authorize` | GET | 无 | 重定向浏览器到 IAM 授权页 |
 | `GET /api/auth/iam/callback` | GET | 无 | IAM OAuth 回调，接收 code + state，转发到 user-service |
-| `POST /api/auth/exchange` | POST | 无 | 用 login_ticket 交换 accessToken、refreshToken、compositeToken |
+| `POST /api/auth/exchange` | POST | 无 | 用 login_ticket 交换 accessToken、refreshToken、**pluginSecret** |
 | `POST /api/auth/refresh` | POST | 无 | 刷新 access_token（token 轮换） |
 | `POST /api/auth/logout` | POST | 无 | 注销会话（需 refreshToken 或 sessionId） |
 | `GET /api/auth/me` | GET | Access Token | 获取当前用户信息 |
 | `GET /api/plugin/bootstrap` | GET | Access Token | 获取插件引导配置（用户、功能开关、默认模型） |
-| `POST /api/model/v1/chat/completions` | POST | Composite Token | OpenAI 兼容聊天补全，支持流式 SSE |
-| `GET /api/model/v1/models` | GET | Composite Token | 列出可用模型 |
+| **`POST /api/auth/model-token`** | **POST** | **HMAC 签名** | **获取短期 Model Token（JWT，TTL 可配置，默认 5分钟）** |
+| `POST /api/model/v1/chat/completions` | POST | **Model Token** | OpenAI 兼容聊天补全，支持流式 SSE |
+| `GET /api/model/v1/models` | GET | **Model Token** | 列出可用模型 |
 
-### 6.2 user-service 内部端点
+### 6.2 Model Token 认证机制
+
+#### 6.2.1 获取 Model Token
+
+**端点**：`POST /api/auth/model-token`
+
+**认证方式**：HMAC-SHA256 签名（无需 Bearer Token）
+
+**请求体**：
+```json
+{
+  "accessToken": "cmscoder_session_xxx",
+  "timestamp": 1715500000,
+  "nonce": "random_string_16_chars",
+  "signature": "hmac_sha256_hex",
+  "pluginInstanceId": "claude-code-v1.0"
+}
+```
+
+**签名算法**：
+```
+signature = HMAC_SHA256(
+  accessToken + timestamp + nonce,
+  plugin_secret  // 登录时与 access_token 一起发放
+)
+```
+
+**服务端校验流程**：
+1. 校验 timestamp 在 ±30秒 内（防重放攻击）
+2. 校验 nonce 未被使用过（短期缓存，如 5分钟）
+3. introspect access_token 获取 session
+4. 从 session 中取出 plugin_secret
+5. 计算 expected_signature 并对比
+6. 如启用 IP 绑定（配置项 `enableIPBinding`），校验请求 IP 与 session 记录的 IP 一致
+7. 签发 model_token（短期 JWT）
+
+**响应**：
+```json
+{
+  "modelToken": "eyJhbGciOiJIUzI1NiIs...",
+  "expiresIn": 300,
+  "tokenType": "Bearer"
+}
+```
+
+#### 6.2.2 Model Token 校验（模型端点）
+
+模型端点 `/api/model/v1/*` 使用 Model Auth 中间件：
+
+1. 从 Authorization Header 提取 Bearer Token
+2. 解析 JWT（HS256 签名，服务端密钥）
+3. 校验 JWT 签名和过期时间
+4. 提取 claims：userId, sessionId, agentType
+5. 转发请求到上游模型平台
+
+**JWT Claims**：
+```json
+{
+  "sub": "user_id",
+  "sid": "session_id",
+  "agent": "claude-code",
+  "iat": 1715500000,
+  "exp": 1715500300
+}
+```
+
+#### 6.2.3 配置项
+
+服务端 `[model]` 段配置：
+```toml
+[model]
+modelTokenTTL = "5m"        # Model Token 有效期，默认 5分钟
+enableIPBinding = false     # 是否启用 IP 绑定校验，默认关闭
+apiKeyHelperInterval = "4m" # 建议的 apiKeyHelper 调用间隔
+```
+
+### 6.3 user-service 内部端点
 
 | 端点 | 方法 | 说明 |
 |------|------|------|

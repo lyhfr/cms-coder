@@ -10,13 +10,13 @@ import (
 )
 
 const (
-	prefixLoginSession  = "cmscoder:login_session:"
-	prefixLoginState    = "cmscoder:login_state:"
-	prefixLoginTicket   = "cmscoder:login_ticket:"
-	prefixUserSession   = "cmscoder:user_session:"
-	prefixUser          = "cmscoder:user:"
-	prefixUserByIamId   = "cmscoder:user_iam:"
-	prefixModelKey      = "cmscoder:model_key:"
+	prefixLoginSession      = "cmscoder:login_session:"
+	prefixLoginState        = "cmscoder:login_state:"
+	prefixLoginTicket       = "cmscoder:login_ticket:"
+	prefixUserSession       = "cmscoder:user_session:"
+	prefixUser              = "cmscoder:user:"
+	prefixUserByIamId       = "cmscoder:user_iam:"
+	prefixModelKey          = "cmscoder:model_key:"
 	prefixModelKeyBySession = "cmscoder:model_key_session:"
 )
 
@@ -55,12 +55,12 @@ type LoginSession struct {
 
 // UserSession represents a user session in cache.
 type UserSession struct {
-	SessionId      string    `json:"sessionId"`
-	UserId         string    `json:"userId"`
-	AgentType      string    `json:"agentType"`
-	PluginInstance string    `json:"pluginInstance"`
-	RefreshToken   string    `json:"refreshToken"`
-	ExpiresAt      time.Time `json:"expiresAt"`
+	SessionId      string     `json:"sessionId"`
+	UserId         string     `json:"userId"`
+	AgentType      string     `json:"agentType"`
+	PluginInstance string     `json:"pluginInstance"`
+	RefreshToken   string     `json:"refreshToken"`
+	ExpiresAt      time.Time  `json:"expiresAt"`
 	RevokedAt      *time.Time `json:"revokedAt,omitempty"`
 }
 
@@ -255,6 +255,10 @@ func (c *MemoryCache) RotateRefreshToken(ctx context.Context, sessionId, newRefr
 	if s == nil {
 		return fmt.Errorf("user session %s not found", sessionId)
 	}
+
+	// Save old refresh token before overwriting for cleanup.
+	oldRefreshToken := s.RefreshToken
+
 	s.RefreshToken = newRefreshToken
 	s.ExpiresAt = newExpiresAt
 
@@ -262,8 +266,8 @@ func (c *MemoryCache) RotateRefreshToken(ctx context.Context, sessionId, newRefr
 		return err
 	}
 	// Delete old refresh token index to prevent replay.
-	if s.RefreshToken != "" {
-		c.cache.Remove(ctx, prefixUserSession+"rt:"+s.RefreshToken)
+	if oldRefreshToken != "" {
+		c.cache.Remove(ctx, prefixUserSession+"rt:"+oldRefreshToken)
 	}
 	return c.cache.Set(ctx, prefixUserSession+"rt:"+newRefreshToken, sessionId, ttl)
 }

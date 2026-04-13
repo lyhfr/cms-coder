@@ -50,9 +50,14 @@ async function login() {
 
     console.error("Login session created");
 
-    const browserUrl = loginData.browserUrl || loginData.data?.browserUrl;
+    let browserUrl = loginData.browserUrl || loginData.data?.browserUrl;
     if (!browserUrl) {
       throw new Error(`Failed to get browser URL from response: ${JSON.stringify(loginData)}`);
+    }
+
+    // Resolve relative URL against backend base URL.
+    if (browserUrl.startsWith("/")) {
+      browserUrl = _getBaseUrl().replace(/\/$/, "") + browserUrl;
     }
 
     // 3. Open browser.

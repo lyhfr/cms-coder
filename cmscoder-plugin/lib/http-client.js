@@ -24,6 +24,7 @@ function _getBaseUrl() {
 
 function _getPluginDir() {
   if (process.env.CMSCODER_PLUGIN_DIR) return process.env.CMSCODER_PLUGIN_DIR;
+  const fs = require("fs");
   const path = require("path");
   // Walk up from __dirname to find the plugin root
   let dir = __dirname;

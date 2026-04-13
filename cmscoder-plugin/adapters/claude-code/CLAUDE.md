@@ -6,7 +6,7 @@ cmscoder provides enterprise-grade AI coding capabilities, integrating your orga
 
 - `/cmscoder-login` — Authenticate with enterprise account
 - `/cmscoder-status` — View current session status, user info, and configuration
-- `/cmscoder-logout` — Log out and clear all local sessions
+- To log out, run: `node "$CMSCODER_PLUGIN_DIR/lib/cmscoder.js" logout`
 
 ## Authentication
 

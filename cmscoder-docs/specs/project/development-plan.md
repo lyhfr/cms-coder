@@ -50,6 +50,66 @@
 - 服务端提供统一模型访问入口
 - 插件端将模型访问重定向到 cmscoder 服务端
 - 完成默认模型、模型列表和基础调用链路
+- **【即将实现】Model Token 认证机制（apiKeyHelper + HMAC 签名 + 短期 JWT）**
+- **【即将实现】跨平台本地代理（macOS/Linux UDS + Windows Named Pipe）**
+
+### Feature 2 开发计划（即将开始）
+
+#### 2.1 服务端（web-server）
+
+**Phase 1：Model Token 签发端点**
+- [ ] 实现 `POST /api/auth/model-token`（HMAC 签名校验 + JWT 签发）
+- [ ] 实现 HMAC-SHA256 签名验证中间件
+- [ ] 实现 timestamp + nonce 防重放机制
+- [ ] 实现 plugin_secret 存储与校验
+- [ ] 添加配置项：`modelTokenTTL`（默认 5分钟）、`enableIPBinding`
+
+**Phase 2：Model Auth 中间件改造**
+- [ ] 将 Composite Token 校验改造为 JWT 校验
+- [ ] 实现 JWT 签名验证（HS256）
+- [ ] 实现 JWT 过期校验
+- [ ] 可选：实现 IP 绑定校验
+
+**Phase 3：user-service 改造**
+- [ ] 登录 exchange 时生成并返回 `plugin_secret`
+- [ ] session 中存储 `plugin_secret`
+- [ ] 可选：存储 `clientIP` 用于 IP 绑定
+
+#### 2.2 插件端
+
+**Phase 1：model-token 命令（Claude Code）**
+- [ ] 实现 `cmscoder.js model-token` 命令
+- [ ] 实现 HMAC-SHA256 签名构造
+- [ ] 实现 access_token 过期自动刷新
+- [ ] 输出 Model Token 到 stdout（供 apiKeyHelper 使用）
+
+**Phase 2：本地代理（OpenCode）**
+- [ ] 实现 `lib/model-proxy.js` 跨平台服务器
+  - [ ] macOS/Linux：Unix Domain Socket
+  - [ ] Windows：Named Pipe
+- [ ] 实现动态密钥生成与校验
+- [ ] 实现 Model Token 自动获取与缓存
+- [ ] 实现 Token 过期前自动刷新
+- [ ] 实现 `cmscoder.js model-proxy` 命令（start/stop/status）
+- [ ] 实现 OpenCode 配置自动写入
+
+**Phase 3：安全存储扩展**
+- [ ] 安全存储增加 `plugin_secret` 键
+- [ ] 移除 `model_api_key`、`composite_token`（如已存在）
+
+#### 2.3 配置与文档
+
+- [ ] 更新 `settings.json` 模板（Claude Code apiKeyHelper 配置）
+- [ ] 更新 OpenCode 适配器文档
+- [ ] 更新服务端配置文档
+
+#### 2.4 联调验收
+
+- [ ] Claude Code 完整链路：登录 → apiKeyHelper → 模型请求
+- [ ] OpenCode 完整链路：登录 → 启动代理 → 模型请求
+- [ ] Token 过期自动刷新验证
+- [ ] IP 绑定功能验证（如启用）
+- [ ] 跨平台测试（macOS、Linux、Windows）
 
 ### Feature 3：插件基础体验增强
 
@@ -112,7 +172,7 @@
 
 - 提供登录入口与登录状态展示
 - 启动本地回环服务并管理端口生命周期
-- 调用 `<cmscoder-backend>/api/auth/login-sessions` 获取浏览器授权地址
+- 调用 `<cmscoder-backend>/api/auth/login` 获取浏览器授权地址
 - 唤起系统默认浏览器访问授权地址
 - 接收 `http://127.0.0.1:<port>/callback` 回调中的 `login_ticket`
 - 调用 `<cmscoder-backend>/api/auth/exchange` 交换正式 token 并写入安全存储
@@ -120,7 +180,7 @@
 
 ### 6.2 服务端
 
-- 实现 `<cmscoder-backend>/api/auth/login-sessions`
+- 实现 `<cmscoder-backend>/api/auth/login`
 - 管理 `login session`、`state` 与 `localPort` 映射
 - 提供浏览器授权入口
 - 实现 `<cmscoder-backend>/api/auth/callback`
