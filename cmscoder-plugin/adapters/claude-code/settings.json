@@ -28,5 +28,10 @@
         ]
       }
     ]
+  },
+  "apiKeyHelper": "node \"$CMSCODER_PLUGIN_DIR/lib/cmscoder.js\" model-token",
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://cmscoder.company.com/api/model/v1",
+    "CLAUDE_CODE_API_KEY_HELPER_TTL_MS": "240000"
   }
 }

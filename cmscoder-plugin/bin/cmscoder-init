@@ -156,6 +156,8 @@ function installClaudeCode() {
     "storage.js",
     "http-client.js",
     "bootstrap.js",
+    "model-token.js",
+    "model-proxy.js",
   ];
   for (const f of libFiles) {
     copyFile(
@@ -232,7 +234,7 @@ function doInstallOpencode() {
 
   if (!installClaude) {
     logInfo(`Installing plugin files to ${CLAUDE_TARGET}`);
-    const libFiles = ["cmscoder.js", "auth.js", "callback-server.js", "storage.js", "http-client.js", "bootstrap.js"];
+    const libFiles = ["cmscoder.js", "auth.js", "callback-server.js", "storage.js", "http-client.js", "bootstrap.js", "model-token.js", "model-proxy.js"];
     for (const f of libFiles) {
       copyFile(
         path.join(PLUGIN_SOURCE_DIR, "lib", f),
@@ -290,11 +292,14 @@ function showNextSteps() {
     console.log("  1. Restart Claude Code or start a new session");
     console.log("  2. Run /cmscoder-login to authenticate");
     console.log("  3. Run /cmscoder-status to verify your session");
+    console.log("  4. Model access uses apiKeyHelper automatically (no extra steps)");
   }
 
   if (installOpencode || installAll) {
-    console.log("  4. Configure OpenCode to use cmscoder hooks and skills");
-    console.log(`     (OpenCode adapter structure is in ${CLAUDE_TARGET}/adapters/opencode/)`);
+    const stepNum = (installClaude || installAll) ? "5" : "1";
+    console.log(`  ${stepNum}. Run: node ~/.cmscoder/plugin/lib/cmscoder.js login`);
+    console.log(`  ${parseInt(stepNum) + 1}. Start local proxy: node ~/.cmscoder/plugin/lib/cmscoder.js model-proxy start`);
+    console.log("     (Required for model access in OpenCode)");
   }
 
   console.log(`\nPlugin directory: ${CLAUDE_TARGET}\n`);

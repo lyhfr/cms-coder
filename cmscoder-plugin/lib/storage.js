@@ -188,7 +188,7 @@ const secureStore = {
   },
 
   clearAll() {
-    for (const key of ["access_token", "refresh_token", "user_info", "session_meta", "model_api_key", "composite_token"]) {
+    for (const key of ["access_token", "refresh_token", "user_info", "session_meta", "model_api_key", "composite_token", "plugin_secret"]) {
       this.delete(key);
     }
   },

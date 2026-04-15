@@ -60,6 +60,7 @@ type UserSession struct {
 	AgentType      string     `json:"agentType"`
 	PluginInstance string     `json:"pluginInstance"`
 	RefreshToken   string     `json:"refreshToken"`
+	PluginSecret   string     `json:"pluginSecret"` // HMAC signing key for Model Token
 	ExpiresAt      time.Time  `json:"expiresAt"`
 	RevokedAt      *time.Time `json:"revokedAt,omitempty"`
 }

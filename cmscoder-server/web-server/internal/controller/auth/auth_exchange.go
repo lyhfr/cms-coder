@@ -23,6 +23,7 @@ func (c *Controller) Exchange(ctx context.Context, req *v1.ExchangeReq) (res *v1
 		ExpiresIn:      out.ExpiresIn,
 		ModelApiKey:    out.ModelApiKey,
 		CompositeToken: out.CompositeToken,
+		PluginSecret:   out.PluginSecret,
 		User: v1.UserInfo{
 			UserId:      out.User.UserId,
 			Email:       out.User.Email,

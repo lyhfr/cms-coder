@@ -10,10 +10,11 @@ type IntrospectReq struct {
 
 // IntrospectRes is the response for session introspection.
 type IntrospectRes struct {
-	UserId      string `json:"userId"`
-	Email       string `json:"email"`
-	DisplayName string `json:"displayName"`
-	TenantId    string `json:"tenantId"`
-	SessionId   string `json:"sessionId"`
-	ExpiresAt   string `json:"expiresAt"`
+	UserId       string `json:"userId"`
+	Email        string `json:"email"`
+	DisplayName  string `json:"displayName"`
+	TenantId     string `json:"tenantId"`
+	SessionId    string `json:"sessionId"`
+	PluginSecret string `json:"pluginSecret"` // HMAC signing key for Model Token
+	ExpiresAt    string `json:"expiresAt"`
 }

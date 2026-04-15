@@ -10,6 +10,9 @@ import (
 	"cmscoder-user-service/internal/service/loginsession"
 	"cmscoder-user-service/internal/service/ticket"
 	"cmscoder-user-service/internal/service/userprofile"
+	"crypto/rand"
+	"encoding/hex"
+
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/util/guid"
 )
@@ -88,9 +91,10 @@ func (s *Service) Complete(ctx context.Context, in CompleteInput) (*CompleteOutp
 		return nil, gerror.Wrap(err, "failed to upsert user")
 	}
 
-	// 5. Create user session.
+	// 5. Create user session with plugin_secret for Model Token HMAC signing.
 	sessionId := guid.S()
 	refreshToken := guid.S()
+	pluginSecret := generatePluginSecret()
 	expiresAt := time.Now().Add(7 * 24 * time.Hour)
 
 	if err := s.cache.CreateUserSession(ctx, &cache.UserSession{
@@ -99,6 +103,7 @@ func (s *Service) Complete(ctx context.Context, in CompleteInput) (*CompleteOutp
 		AgentType:      session.AgentType,
 		PluginInstance: session.PluginInstanceId,
 		RefreshToken:   refreshToken,
+		PluginSecret:   pluginSecret,
 		ExpiresAt:      expiresAt,
 	}, 7*24*time.Hour); err != nil {
 		return nil, gerror.Wrap(err, "failed to create user session")
@@ -125,4 +130,11 @@ func (s *Service) Complete(ctx context.Context, in CompleteInput) (*CompleteOutp
 	return &CompleteOutput{
 		LoopbackRedirectUrl: loopbackRedirectUrl,
 	}, nil
+}
+
+// generatePluginSecret creates a random 32-byte hex secret for HMAC signing.
+func generatePluginSecret() string {
+	b := make([]byte, 32)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
 }

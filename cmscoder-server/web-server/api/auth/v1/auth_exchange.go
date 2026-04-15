@@ -11,12 +11,13 @@ type ExchangeReq struct {
 
 // ExchangeRes is the response for exchanging login ticket.
 type ExchangeRes struct {
-	AccessToken    string     `json:"accessToken"`
-	RefreshToken   string     `json:"refreshToken"`
-	ExpiresIn      int64      `json:"expiresIn"`
-	ModelApiKey    string     `json:"modelApiKey"`
-	CompositeToken string     `json:"compositeToken"`
-	User           UserInfo   `json:"user"`
+	AccessToken    string   `json:"accessToken"`
+	RefreshToken   string   `json:"refreshToken"`
+	ExpiresIn      int64    `json:"expiresIn"`
+	ModelApiKey    string   `json:"modelApiKey"`
+	CompositeToken string   `json:"compositeToken"`
+	PluginSecret   string   `json:"pluginSecret"` // HMAC signing key for Model Token
+	User           UserInfo `json:"user"`
 }
 
 // UserInfo contains basic user information.

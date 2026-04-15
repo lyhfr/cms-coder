@@ -2,6 +2,8 @@ package auth
 
 import (
 	"cmscoder-web-server/internal/clients/userclient"
+	"cmscoder-web-server/internal/middleware"
+
 	"github.com/gogf/gf/v2/errors/gerror"
 )
 
@@ -16,13 +18,15 @@ type IAMConfig struct {
 type Controller struct {
 	userClient *userclient.Client
 	iamCfg     *IAMConfig
+	nonceCache *middleware.NonceCache
 }
 
 // New creates a new auth controller.
-func New(userClient *userclient.Client, iamCfg *IAMConfig) *Controller {
+func New(userClient *userclient.Client, iamCfg *IAMConfig, nonceCache *middleware.NonceCache) *Controller {
 	return &Controller{
 		userClient: userClient,
 		iamCfg:     iamCfg,
+		nonceCache: nonceCache,
 	}
 }
 

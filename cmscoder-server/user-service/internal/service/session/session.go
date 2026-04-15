@@ -6,6 +6,7 @@ import (
 
 	"cmscoder-user-service/internal/cache"
 	"cmscoder-user-service/internal/service/modelkey"
+
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/util/guid"
 )
@@ -118,6 +119,7 @@ type IntrospectOutput struct {
 	UserEmail       string
 	UserDisplayName string
 	UserTenantId    string
+	PluginSecret    string // HMAC signing key for Model Token
 	ExpiresAt       string
 }
 
@@ -148,6 +150,7 @@ func (s *Service) Introspect(ctx context.Context, in IntrospectInput) (*Introspe
 		UserEmail:       user.Email,
 		UserDisplayName: user.DisplayName,
 		UserTenantId:    user.TenantId,
+		PluginSecret:    userSession.PluginSecret,
 		ExpiresAt:       userSession.ExpiresAt.Format(time.RFC3339),
 	}, nil
 }

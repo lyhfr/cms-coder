@@ -42,14 +42,15 @@ func mainFunc(ctx context.Context, parser *gcmd.Parser) (err error) {
 	}
 
 	var (
-		s              = g.Server()
-		userClient     = userclient.New(userServiceBaseURL)
-		authCtrl       = auth.New(userClient, iamCfg)
-		rateLimiter    = middleware.NewRateLimiter(100, time.Minute)
+		s               = g.Server()
+		userClient      = userclient.New(userServiceBaseURL)
+		nonceCache      = middleware.NewNonceCache(5 * time.Minute)
+		authCtrl        = auth.New(userClient, iamCfg, nonceCache)
+		rateLimiter     = middleware.NewRateLimiter(100, time.Minute)
 		upstreamBaseURL = g.Cfg().MustGet(ctx, "model.upstreamBaseURL").String()
 		upstreamApiKey  = g.Cfg().MustGet(ctx, "model.upstreamApiKey").String()
 		defaultModel    = g.Cfg().MustGet(ctx, "model.defaultModel").String()
-		modelCtrl      = model.New(upstreamBaseURL, upstreamApiKey, defaultModel)
+		modelCtrl       = model.New(upstreamBaseURL, upstreamApiKey, defaultModel)
 	)
 
 	s.Use(ghttp.MiddlewareHandlerResponse)
@@ -61,12 +62,12 @@ func mainFunc(ctx context.Context, parser *gcmd.Parser) (err error) {
 			ghttp.MiddlewareCORS,
 		)
 
-		// Public auth endpoints.
+		// Public auth endpoints (no authentication required).
 		group.Bind(authCtrl)
 
-		// Model endpoints with model API key auth.
+		// Model endpoints with JWT Model Token auth.
 		group.Group("/", func(group *ghttp.RouterGroup) {
-			group.Middleware(middleware.ModelAuth(userClient))
+			group.Middleware(middleware.ModelTokenAuth())
 			group.Bind(modelCtrl)
 		})
 

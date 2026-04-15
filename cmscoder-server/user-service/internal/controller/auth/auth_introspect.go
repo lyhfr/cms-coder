@@ -17,11 +17,12 @@ func (c *Controller) Introspect(ctx context.Context, req *v1.IntrospectReq) (res
 	}
 
 	return &v1.IntrospectRes{
-		UserId:      out.UserId,
-		Email:       out.UserEmail,
-		DisplayName: out.UserDisplayName,
-		TenantId:    out.UserTenantId,
-		SessionId:   out.SessionId,
-		ExpiresAt:   out.ExpiresAt,
+		UserId:       out.UserId,
+		Email:        out.UserEmail,
+		DisplayName:  out.UserDisplayName,
+		TenantId:     out.UserTenantId,
+		SessionId:    out.SessionId,
+		PluginSecret: out.PluginSecret,
+		ExpiresAt:    out.ExpiresAt,
 	}, nil
 }

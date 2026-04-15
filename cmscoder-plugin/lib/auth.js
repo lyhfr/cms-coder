@@ -79,6 +79,7 @@ async function login() {
     const refreshToken = exchangeData.refreshToken || exchangeData.data?.refreshToken;
     const modelApiKey = exchangeData.modelApiKey || exchangeData.data?.modelApiKey;
     const compositeToken = exchangeData.compositeToken || exchangeData.data?.compositeToken;
+    const pluginSecret = exchangeData.pluginSecret || exchangeData.data?.pluginSecret;
     const expiresIn = exchangeData.expiresIn || exchangeData.data?.expiresIn || 900;
     const user = exchangeData.user || exchangeData.data?.user || {};
 
@@ -95,6 +96,9 @@ async function login() {
     }
     if (compositeToken) {
       secureStore.set("composite_token", compositeToken);
+    }
+    if (pluginSecret) {
+      secureStore.set("plugin_secret", pluginSecret);
     }
 
     // 7. Store session metadata.

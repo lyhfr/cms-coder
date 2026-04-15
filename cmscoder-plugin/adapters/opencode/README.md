@@ -8,6 +8,27 @@ cmscoder provides enterprise-grade AI coding capabilities for OpenCode, integrat
 - `/cmscoder-status` — View current session status
 - To log out, run: `node "$CMSCODER_PLUGIN_DIR/lib/cmscoder.js" logout`
 
+## Model Access (Local Proxy)
+
+OpenCode does not support apiKeyHelper. Use the local proxy for model access:
+
+```bash
+# Start local proxy (required after login)
+node "$CMSCODER_PLUGIN_DIR/lib/cmscoder.js" model-proxy start
+
+# Check proxy status
+node "$CMSCODER_PLUGIN_DIR/lib/cmscoder.js" model-proxy status
+
+# Stop proxy
+node "$CMSCODER_PLUGIN_DIR/lib/cmscoder.js" model-proxy stop
+```
+
+The proxy:
+- macOS/Linux: Uses Unix Domain Socket (`~/.cmscoder/model-proxy.sock`)
+- Windows: Uses TCP on localhost with dynamic port
+- Automatically generates proxy secret and writes to `~/.opencode/config.json`
+- Caches Model Token (5 min TTL) and refreshes before expiry
+
 ## Authentication
 
 cmscoder uses enterprise SSO (IAM) for authentication. Configuration is shared with the Claude Code adapter.

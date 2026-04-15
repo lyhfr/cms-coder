@@ -41,6 +41,7 @@ func (c *Controller) Exchange(ctx context.Context, req *v1.ExchangeReq) (res *v1
 		ExpiresIn:      out.ExpiresIn,
 		ModelApiKey:    mkOut.ModelApiKey,
 		CompositeToken: compositeToken,
+		PluginSecret:   out.PluginSecret,
 		User: v1.User{
 			UserId:      out.User.UserId,
 			Email:       out.User.Email,

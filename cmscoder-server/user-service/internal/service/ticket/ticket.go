@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"cmscoder-user-service/internal/cache"
+
 	"github.com/gogf/gf/v2/errors/gerror"
 )
 
@@ -36,13 +37,14 @@ type ExchangeInput struct {
 
 // ExchangeOutput is the output for exchanging login ticket.
 type ExchangeOutput struct {
-	AccessToken  string
-	RefreshToken string
-	ExpiresIn    int64
-	SessionId    string
-	AgentType    string
+	AccessToken    string
+	RefreshToken   string
+	ExpiresIn      int64
+	SessionId      string
+	AgentType      string
 	PluginInstance string
-	User         User
+	PluginSecret   string // HMAC signing key for Model Token
+	User           User
 }
 
 // User contains user information.
@@ -89,6 +91,7 @@ func (s *Service) Exchange(ctx context.Context, in ExchangeInput) (*ExchangeOutp
 		SessionId:      userSession.SessionId,
 		AgentType:      userSession.AgentType,
 		PluginInstance: userSession.PluginInstance,
+		PluginSecret:   userSession.PluginSecret,
 		User: User{
 			UserId:      user.UserId,
 			Email:       user.Email,

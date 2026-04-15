@@ -3,9 +3,9 @@ package userclient
 import (
 	"context"
 
-	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/errors/gerror"
+	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/gclient"
 )
 
@@ -33,9 +33,9 @@ type LoginSessionInput struct {
 
 // LoginSessionOutput is the output of creating a login session.
 type LoginSessionOutput struct {
-	LoginId   string `json:"loginId"`
+	LoginId    string `json:"loginId"`
 	BrowserUrl string `json:"browserUrl"`
-	ExpiresAt string `json:"expiresAt"`
+	ExpiresAt  string `json:"expiresAt"`
 }
 
 // CreateLoginSession calls user-service to create a login session.
@@ -81,8 +81,8 @@ func (c *Client) CompleteCallback(ctx context.Context, in CallbackInput) (*Callb
 
 	body := res.ReadAllString()
 	var apiRes struct {
-		Code int              `json:"code"`
-		Data CallbackOutput   `json:"data"`
+		Code int            `json:"code"`
+		Data CallbackOutput `json:"data"`
 	}
 	if err := gjson.Unmarshal([]byte(body), &apiRes); err != nil {
 		return nil, err
@@ -106,6 +106,7 @@ type ExchangeOutput struct {
 	ExpiresIn      int64  `json:"expiresIn"`
 	ModelApiKey    string `json:"modelApiKey"`
 	CompositeToken string `json:"compositeToken"`
+	PluginSecret   string `json:"pluginSecret"` // HMAC signing key for Model Token
 	User           User   `json:"user"`
 }
 
@@ -199,12 +200,13 @@ func (c *Client) RevokeSession(ctx context.Context, sessionId, refreshToken stri
 
 // IntrospectResult is the result of introspecting a session.
 type IntrospectResult struct {
-	UserId      string `json:"userId"`
-	Email       string `json:"email"`
-	DisplayName string `json:"displayName"`
-	TenantId    string `json:"tenantId"`
-	SessionId   string `json:"sessionId"`
-	ExpiresAt   string `json:"expiresAt"`
+	UserId       string `json:"userId"`
+	Email        string `json:"email"`
+	DisplayName  string `json:"displayName"`
+	TenantId     string `json:"tenantId"`
+	SessionId    string `json:"sessionId"`
+	PluginSecret string `json:"pluginSecret"` // HMAC signing key for Model Token
+	ExpiresAt    string `json:"expiresAt"`
 }
 
 // IntrospectSession calls user-service to introspect a session.
