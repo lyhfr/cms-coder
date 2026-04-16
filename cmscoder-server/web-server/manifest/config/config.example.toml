@@ -4,7 +4,6 @@
 # ── 服务器配置 ──────────────────────────────────────────────────
 [server]
 address = ":39010"
-serverRoot = "public"
 logPath = "logs"
 logStdout = true
 errorStack = true
