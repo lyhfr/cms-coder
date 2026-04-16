@@ -1,14 +1,11 @@
-FROM golang:1.24 AS builder
-
+FROM artifacts.cmschina.com.cn/public-docker-rdm-remote/golang:1.26.2-bookworm
+ENV ARTIFACTSDOMAIN http://172.253.70.26
+ENV TZ=Asia/Shanghai
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+# 默认上下文目录 . 应为项目根目录
+COPY . /app
+RUN go env -w GO111MODULE=on && go env -w GOPROXY=${ARTIFACTSDOMAIN}/artifactory/api/go/public-go-rdm-virtual && cd /app && go mod tidy && go build main.go
 WORKDIR /app
-COPY go.mod go.sum* ./
-RUN go mod download || true
-COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -o cmscoder-web-server .
-
-FROM alpine:latest
-WORKDIR /app
-COPY --from=builder /app/cmscoder-web-server .
-COPY --from=builder /app/manifest/config /app/manifest/config
-EXPOSE 39010
-CMD ["./cmscoder-web-server"]
+RUN chmod +x main
+# 运行时需要挂载config.toml文件到/app/config/config.toml
+CMD ./main

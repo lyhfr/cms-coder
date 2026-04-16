@@ -1,0 +1,35 @@
+# cmscoder web-server 配置文件示例
+# 复制此文件为 config.toml 并修改配置
+
+# ── 服务器配置 ──────────────────────────────────────────────────
+[server]
+address = ":39010"
+serverRoot = "public"
+logPath = "logs"
+logStdout = true
+errorStack = true
+errorLogEnabled = true
+
+# ── User Service 配置 ────────────────────────────────────────────
+[userService]
+baseURL = "http://127.0.0.1:39011"
+
+# ── IAM 配置 (企业 SSO) ────────────────────────────────────────
+[iam]
+authorizeURL = ""
+clientId = ""
+redirectURI = ""
+
+# ── 模型代理配置 ────────────────────────────────────────────────
+[model]
+upstreamBaseURL = ""
+upstreamApiKey = ""
+defaultModel = "gpt-4o"
+modelTokenTTL = "5m"
+jwtSecret = ""
+enableIPBinding = false
+
+# ── 日志配置 ────────────────────────────────────────────────────
+[logger]
+level = "all"
+stdout = true

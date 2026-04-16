@@ -54,7 +54,7 @@ docker compose down                # 停止
 
 ## 技术栈
 
-- Go 1.24
+- Go 1.26
 - GoFrame v2.10.0
 - Redis（生产环境，当前使用内存缓存测试）
 - MySQL/PostgreSQL (持久化存储)

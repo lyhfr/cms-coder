@@ -1,0 +1,33 @@
+# cmscoder user-service 配置文件示例
+# 复制此文件为 config.toml 并修改配置
+
+# ── 服务器配置 ──────────────────────────────────────────────────
+[server]
+address = ":39011"
+serverRoot = "public"
+logPath = "logs"
+logStdout = true
+errorStack = true
+errorLogEnabled = true
+
+# ── IAM 配置 (企业 SSO) ────────────────────────────────────────
+[iam]
+# IAM Token 端点
+tokenURL = ""
+
+# IAM 用户信息端点
+userInfoURL = ""
+
+# OAuth2 客户端 ID
+clientId = ""
+
+# OAuth2 客户端密钥
+clientSecret = ""
+
+# IAM 回调 URI
+redirectURI = ""
+
+# ── 日志配置 ────────────────────────────────────────────────────
+[logger]
+level = "all"
+stdout = true
