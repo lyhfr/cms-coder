@@ -1,0 +1,50 @@
+# ── Environment ─────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Go (cmscoder-server) ────────────────────────────────────
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+vendor/
+
+# ── Server config (含 IAM secret) ──────────────────────────
+cmscoder-server/*/.env
+
+# ── All YAML ────────────────────────────────────────────────
+*.yaml
+*.yml
+
+# ── All TOML ────────────────────────────────────────────────
+*.toml
+!cmscoder-server/*/hack/config.toml
+
+# ── Node / Plugin ──────────────────────────────────────────
+node_modules/
+npm-debug.log*
+.cache/
+
+# ── Plugin runtime ─────────────────────────────────────────
+# 本地代理 socket 文件
+*.sock
+# OpenCode 配置（含动态密钥）
+.opencode/
+
+# ── IDE / Editor ────────────────────────────────────────────
+.claude/
+.trae/
+.idea/
+.vscode/
+.qoder/
+
+# ── OS ─────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Docker (generated) ─────────────────────────────────────
+*.tar

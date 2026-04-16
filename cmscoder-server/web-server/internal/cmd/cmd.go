@@ -61,16 +61,24 @@ func mainFunc(ctx context.Context, parser *gcmd.Parser) (err error) {
 			rateLimiter.Middleware,
 			ghttp.MiddlewareCORS,
 		)
-
+	
 		// Public auth endpoints (no authentication required).
-		group.Bind(authCtrl)
-
+		group.ALLMap(g.Map{
+			"/api/auth/login":                  authCtrl.LoginSession,
+			"/api/auth/login/{loginId}/authorize": authCtrl.LoginSessionAuthorize,
+			"/api/auth/iam/callback":           authCtrl.Callback,
+			"/api/auth/exchange":               authCtrl.Exchange,
+			"/api/auth/refresh":                authCtrl.Refresh,
+			"/api/auth/logout":                 authCtrl.Logout,
+			"/api/auth/model-token":            authCtrl.ModelToken,
+		})
+	
 		// Model endpoints with JWT Model Token auth.
 		group.Group("/", func(group *ghttp.RouterGroup) {
 			group.Middleware(middleware.ModelTokenAuth())
 			group.Bind(modelCtrl)
 		})
-
+	
 		// Protected endpoints requiring authentication.
 		group.Group("/", func(group *ghttp.RouterGroup) {
 			group.Middleware(middleware.Auth(userClient))
